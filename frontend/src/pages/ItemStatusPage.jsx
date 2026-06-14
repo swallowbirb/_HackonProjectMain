@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import { getItemStatus, updateItemNotes } from '../services/item.service';
 import DeveloperLogsSidebar from '../components/shared/DeveloperLogsSidebar';
 import TrustTierBadge from '../components/shared/TrustTierBadge';
-import RoutingRationale from '../components/routing/RoutingRationale';
+import DonateItemCard from '../components/shared/DonateItemCard';
+import DonatedSummaryCard from '../components/shared/DonatedSummaryCard';
 import {
   Loader2, CheckCircle2, Clock, AlertCircle, Recycle, ShoppingBag, Package, ChevronDown, Pencil,
 } from 'lucide-react';
@@ -81,8 +82,9 @@ export default function ItemStatusPage() {
     }
   }, [status, notesInit]);
 
-  const POST_GRADED = ['GRADED', 'ROUTED', 'IN_TRANSIT', 'LISTED', 'SOLD', 'DONATED', 'LIQUIDATED'];
+  const POST_GRADED = ['GRADED', 'ROUTED', 'IN_TRANSIT', 'LISTED'];
   const canAddNotes = status && POST_GRADED.includes(status.status);
+  const isDonated = status?.status === 'DONATED';
 
   const handleSaveNotes = async () => {
     setSavingNotes(true);
@@ -134,6 +136,13 @@ export default function ItemStatusPage() {
               {status?.trustTier && (
                 <div className="mb-8">
                   <TrustTierBadge tier={status.trustTier} showMessage />
+                </div>
+              )}
+
+              {/* Donated — persistent summary (Phase 8) */}
+              {isDonated && (
+                <div className="mb-8">
+                  <DonatedSummaryCard itemId={itemId} />
                 </div>
               )}
 
@@ -239,10 +248,12 @@ export default function ItemStatusPage() {
                     </div>
                   )}
 
-                  {/* Routing decision (Phase A) */}
-                  <div className="mt-5">
-                    <RoutingRationale itemId={itemId} />
-                  </div>
+                  {/* Routing placeholder */}
+                  {!isDonated && (
+                    <div className="mt-5 border border-dashed border-gray-200 rounded-xl p-4 text-center">
+                      <p className="text-xs text-gray-400">Routing decision will appear here</p>
+                    </div>
+                  )}
                 </motion.div>
               ) : (
                 <motion.div
@@ -322,6 +333,14 @@ export default function ItemStatusPage() {
                     </div>
                   </div>
                 </motion.div>
+              )}
+
+              {/* Donate instead — available for graded, non-terminal items (Phase 8). */}
+              {status && ['GRADED', 'ROUTED', 'IN_TRANSIT', 'LISTED'].includes(status.status) && (
+                <DonateItemCard
+                  itemId={itemId}
+                  onDonated={() => setStatus((cur) => (cur ? { ...cur, status: 'DONATED' } : cur))}
+                />
               )}
 
               <p className="text-xs text-gray-300 text-center mt-6">Item ID: {itemId}</p>

@@ -105,7 +105,28 @@ const createOrder = async ({ buyerId, productId, offerId, quantity, mockCreditCa
   // Increment product's total sales count
   await Product.findByIdAndUpdate(productId, { $inc: { totalSales: quantity } });
 
+  // Phase 8 — if this product is a resale mirror, award green credits + record
+  // sustainability impact for buyer and seller. Defensive: never blocks the order.
+  await maybeRecordResaleSale(order, productId);
+
   return order;
+};
+
+/**
+ * Phase 8 — detect a second-life resale purchase (the ordered product is a
+ * ResaleListing mirror) and trigger the sustainability/credits flow. Best-effort.
+ */
+const maybeRecordResaleSale = async (order, productId) => {
+  if (!productId) return;
+  try {
+    const ResaleListing = require('../resale/resale.model');
+    const listing = await ResaleListing.findOne({ marketplaceProductId: productId }).lean();
+    if (!listing) return; // not a resale item — normal marketplace product
+    const sustainabilityService = require('../sustainability/sustainability.service');
+    await sustainabilityService.recordResaleSale({ resaleListing: listing, order });
+  } catch (err) {
+    console.warn(`[orders] sustainability hook skipped: ${err.message}`);
+  }
 };
 
 /**

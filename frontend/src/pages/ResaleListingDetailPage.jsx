@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Loader2, AlertCircle, ShieldCheck, Recycle, CheckCircle2, MapPin, X, Zap, FileText,
+  Loader2, AlertCircle, ShieldCheck, Recycle, CheckCircle2, MapPin, X, Zap, FileText, Leaf, Coins,
 } from 'lucide-react';
 import { getResaleListing } from '../services/resale.service';
 import { createOrder } from '../services/order.service';
+import { getUserImpact, redeemCredits } from '../services/sustainability.service';
 import { useCustomUser } from '../context/CustomUserContext';
 import GradeBadge from '../components/resale/GradeBadge';
 
@@ -29,6 +30,11 @@ export default function ResaleListingDetailPage() {
   const [orderError, setOrderError] = useState('');
   const [orderSuccess, setOrderSuccess] = useState(false);
 
+  // Phase 8 — green credits.
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [useCredits, setUseCredits] = useState(false);
+  const [creditsRedeemed, setCreditsRedeemed] = useState(0);
+
   const fetchListing = useCallback(async () => {
     try {
       const res = await getResaleListing(id);
@@ -43,6 +49,20 @@ export default function ResaleListingDetailPage() {
 
   useEffect(() => { fetchListing(); }, [fetchListing]);
 
+  // Load the buyer's credit balance for the checkout redeem option.
+  useEffect(() => {
+    if (!mongoUser?._id) return;
+    getUserImpact(mongoUser._id)
+      .then((res) => { if (res.success) setCreditBalance(res.data.creditBalance || 0); })
+      .catch(() => {});
+  }, [mongoUser]);
+
+  const price = Number(listing?.price || 0);
+  const RUPEE_PER_CREDIT = 10;
+  const maxRedeemCredits = Math.min(creditBalance, Math.floor((price - 1) / RUPEE_PER_CREDIT)); // keep ₹1 minimum payable
+  const discount = useCredits ? maxRedeemCredits * RUPEE_PER_CREDIT : 0;
+  const payable = Math.max(0, price - discount);
+
   const handleConfirmPurchase = async () => {
     if (!listing?.marketplaceProductId) {
       setOrderError('This listing is not yet available for purchase.');
@@ -53,6 +73,13 @@ export default function ResaleListingDetailPage() {
     try {
       const res = await createOrder({ productId: listing.marketplaceProductId, quantity: 1, mockCreditCard: card });
       if (res.success) {
+        // Redeem credits against this order if the buyer chose to.
+        if (useCredits && discount > 0) {
+          try {
+            const r = await redeemCredits(maxRedeemCredits, res.data?._id);
+            if (r.success) setCreditsRedeemed(r.data.creditsSpent || maxRedeemCredits);
+          } catch { /* redemption non-fatal */ }
+        }
         setShowCheckout(false);
         setOrderSuccess(true);
       }
@@ -131,6 +158,15 @@ export default function ResaleListingDetailPage() {
               </p>
             )}
 
+            {/* Green-credits incentive (Phase 8) */}
+            <div className="mt-3 inline-flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1.5">
+              <Coins className="w-3.5 h-3.5 text-amber-600" />
+              <span className="text-xs font-semibold text-emerald-800">Earn 10 green credits</span>
+              <span className="text-emerald-300">·</span>
+              <Leaf className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="text-xs text-emerald-700">buying second-hand saves CO₂</span>
+            </div>
+
             {/* Grade card */}
             <div className="mt-5 bg-white border border-gray-200 rounded-2xl p-5">
               <div className="flex items-center justify-between">
@@ -201,6 +237,14 @@ export default function ResaleListingDetailPage() {
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
                   <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
                   <p className="font-semibold text-emerald-800">Order placed!</p>
+                  <p className="text-sm text-emerald-700 mt-1 flex items-center justify-center gap-1">
+                    <Coins className="w-4 h-4 text-amber-600" /> +10 green credits earned
+                  </p>
+                  {creditsRedeemed > 0 && (
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      Redeemed {creditsRedeemed} credit{creditsRedeemed === 1 ? '' : 's'} (−₹{creditsRedeemed * RUPEE_PER_CREDIT}) on this order.
+                    </p>
+                  )}
                   <Link to="/orders" className="text-sm text-[#007185] underline mt-1 inline-block">View your orders</Link>
                 </div>
               ) : isSold ? (
@@ -243,6 +287,27 @@ export default function ResaleListingDetailPage() {
               </div>
               <p className="text-sm text-gray-600 mb-1">{listing.title}</p>
               <p className="text-2xl font-bold text-[#B12704] mb-4">₹{Number(listing.price).toLocaleString()}</p>
+
+              {/* Redeem green credits (Phase 8) */}
+              {creditBalance > 0 && maxRedeemCredits > 0 && (
+                <label className="flex items-start gap-2 bg-emerald-50 border border-emerald-100 rounded-xl p-3 mb-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useCredits}
+                    onChange={(e) => setUseCredits(e.target.checked)}
+                    className="mt-0.5 accent-emerald-600"
+                  />
+                  <span className="text-xs text-emerald-900">
+                    Use <span className="font-bold">{maxRedeemCredits}</span> of your {creditBalance} green credits
+                    <span className="font-semibold"> (−₹{maxRedeemCredits * RUPEE_PER_CREDIT})</span>
+                    <span className="block text-emerald-700/60">1 credit = ₹{RUPEE_PER_CREDIT}</span>
+                    {useCredits && (
+                      <span className="block mt-1 text-emerald-700 font-semibold">You pay ₹{payable.toLocaleString()}</span>
+                    )}
+                  </span>
+                </label>
+              )}
+
               <label className="block text-xs font-semibold text-gray-600 mb-1">Mock card number (simulated)</label>
               <input
                 value={card}

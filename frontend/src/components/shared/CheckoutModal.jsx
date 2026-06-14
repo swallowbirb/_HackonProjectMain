@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, X, ShieldCheck, Lock, Package, Banknote, Sparkles, Info } from 'lucide-react';
+import { CreditCard, X, ShieldCheck, Lock, Package, Banknote, Sparkles, Info, Coins } from 'lucide-react';
 import { getPaymentPolicy, getReturnWindow } from '../../services/festive.service';
+import { getUserImpact } from '../../services/sustainability.service';
+import { useCustomUser } from '../../context/CustomUserContext';
+
+const RUPEE_PER_CREDIT = 10;
 
 /**
  * CheckoutModal — reusable for both single-product (Buy Now) and cart checkout.
@@ -30,6 +34,11 @@ export default function CheckoutModal({
   const [creditCard, setCreditCard] = useState('');
   const [error, setError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('prepaid');
+
+  // Phase 8 — green credits.
+  const { mongoUser } = useCustomUser();
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [useCredits, setUseCredits] = useState(false);
 
   // Festive policy state
   const [festive, setFestive] = useState(null);       // { festive, eventCode, codAllowed, cap, partialPrepaidToken }
@@ -77,14 +86,30 @@ export default function CheckoutModal({
   const codAllowed = !festive || festive.codAllowed !== false; // default allow if no policy
   const isFestive = !!(festive && festive.festive);
 
+  // Fetch the buyer's green-credit balance when the modal opens.
+  useEffect(() => {
+    if (!isOpen || !mongoUser?._id) return;
+    let cancelled = false;
+    getUserImpact(mongoUser._id)
+      .then((res) => { if (!cancelled && res.success) setCreditBalance(res.data.creditBalance || 0); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen, mongoUser]);
+
+  // Redemption math — 1 credit = ₹10, keep ₹1 minimum payable.
+  const maxRedeemCredits = Math.min(creditBalance, Math.floor((Math.floor(total) - 1) / RUPEE_PER_CREDIT));
+  const discount = useCredits && maxRedeemCredits > 0 ? maxRedeemCredits * RUPEE_PER_CREDIT : 0;
+  const payable = Math.max(0, total - discount);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (paymentMethod === 'prepaid' && !creditCard.trim()) {
+    if (paymentMethod === 'prepaid' && payable > 0 && !creditCard.trim()) {
       setError('Please enter a mock credit card number.');
       return;
     }
     setError('');
-    onConfirm(paymentMethod === 'cod' ? '' : creditCard, paymentMethod);
+    const creditsToRedeem = useCredits && maxRedeemCredits > 0 ? maxRedeemCredits : 0;
+    onConfirm(paymentMethod === 'cod' ? '' : creditCard, paymentMethod, creditsToRedeem);
   };
 
   return (
@@ -165,6 +190,27 @@ export default function CheckoutModal({
                   </>
                 )}
               </div>
+
+              {/* Green credits redemption (Phase 8) */}
+              {creditBalance > 0 && maxRedeemCredits > 0 && (
+                <label className="mb-4 flex items-start gap-2 bg-emerald-50 border border-emerald-100 rounded-lg p-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useCredits}
+                    onChange={(e) => setUseCredits(e.target.checked)}
+                    className="mt-0.5 accent-emerald-600"
+                  />
+                  <span className="text-xs text-emerald-900 leading-relaxed">
+                    <span className="inline-flex items-center gap-1 font-bold">
+                      <Coins className="w-3.5 h-3.5 text-amber-600" /> Use {maxRedeemCredits} green credit{maxRedeemCredits === 1 ? '' : 's'} (−₹{maxRedeemCredits * RUPEE_PER_CREDIT})
+                    </span>
+                    <span className="block text-emerald-700/70 mt-0.5">
+                      Balance: {creditBalance} credits · 1 credit = ₹{RUPEE_PER_CREDIT}
+                      {useCredits && <span className="font-semibold text-emerald-800"> · You pay ₹{payable.toFixed(2)}</span>}
+                    </span>
+                  </span>
+                </label>
+              )}
 
               {/* Payment method selector */}
               <div className="mb-4">
@@ -281,7 +327,7 @@ export default function CheckoutModal({
                         Processing
                       </span>
                     ) : (
-                      `${paymentMethod === 'cod' ? 'Place COD Order' : 'Confirm Purchase'} • $${total.toFixed(2)}`
+                      `${paymentMethod === 'cod' ? 'Place COD Order' : 'Confirm Purchase'} • ₹${payable.toFixed(2)}`
                     )}
                   </button>
                 </div>

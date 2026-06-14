@@ -17,11 +17,6 @@ async function createIndexes() {
   await db.collection('wants').createIndex({ productCategory: 1, location: '2dsphere' });
   console.log('✓ wants indexes');
 
-  // warehouses — geospatial (Phase A demand map + best-warehouse selection)
-  await db.collection('warehouses').createIndex({ location: '2dsphere' });
-  await db.collection('warehouses').createIndex({ code: 1 }, { unique: true });
-  console.log('✓ warehouses indexes');
-
   // items — state machine queries
   await db.collection('items').createIndex({ status: 1, createdAt: -1 });
   await db.collection('items').createIndex({ userId: 1, status: 1 });

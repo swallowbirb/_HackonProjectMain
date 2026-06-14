@@ -29,8 +29,6 @@ import ItemEvidencePage from './pages/ItemEvidencePage';
 import ItemStatusPage from './pages/ItemStatusPage';
 import ResaleMarketplacePage from './pages/ResaleMarketplacePage';
 import ResaleListingDetailPage from './pages/ResaleListingDetailPage';
-import LookingForPage from './pages/LookingForPage';
-import DemandMapPage from './pages/admin/DemandMapPage';
 
 // ─── Role Guards ────────────────────────────────────────────────────────────
 
@@ -172,10 +170,6 @@ function App() {
                 element={<CustomSignedIn><MarketplaceLayout><SellSecondhandPage /></MarketplaceLayout></CustomSignedIn>}
               />
               <Route
-                path="/looking-for"
-                element={<CustomSignedIn><MarketplaceLayout><LookingForPage /></MarketplaceLayout></CustomSignedIn>}
-              />
-              <Route
                 path="/items/:itemId/evidence"
                 element={<CustomSignedIn><MarketplaceLayout><ItemEvidencePage /></MarketplaceLayout></CustomSignedIn>}
               />
@@ -212,10 +206,6 @@ function App() {
               <Route
                 path="/admin/dashboard"
                 element={<CustomSignedIn><AdminGuard><AdminDashboard /></AdminGuard></CustomSignedIn>}
-              />
-              <Route
-                path="/admin/demand-map"
-                element={<CustomSignedIn><AdminGuard><MarketplaceLayout><DemandMapPage /></MarketplaceLayout></AdminGuard></CustomSignedIn>}
               />
             </Routes>
           </RoleGuard>

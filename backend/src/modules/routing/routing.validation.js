@@ -1,10 +1,7 @@
-const mongoose = require('mongoose');
+// TODO: Add validation schemas for routing decision trigger
 
 const validateComputeRouting = (req, res, next) => {
-  const { itemId } = req.body;
-  if (!itemId || !mongoose.isValidObjectId(itemId)) {
-    return res.status(400).json({ success: false, message: 'A valid itemId is required' });
-  }
+  // TODO: validate itemId, gradeId
   next();
 };
 

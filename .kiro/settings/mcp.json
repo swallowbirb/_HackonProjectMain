@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mermaid": {
+      "command": "npx",
+      "args": ["-y", "@peng-shawn/mermaid-mcp-server"],
+      "env": {
+        "CONTENT_IMAGE_SUPPORTED": "false"
+      },
+      "disabled": false,
+      "autoApprove": ["generate"]
+    }
+  }
+}

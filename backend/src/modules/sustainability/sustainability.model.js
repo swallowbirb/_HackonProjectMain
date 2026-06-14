@@ -21,13 +21,18 @@ const sustainabilitySchema = new mongoose.Schema(
     co2SavedKg: { type: Number, min: 0, default: 0 },
     waterSavedLiters: { type: Number, min: 0, default: 0 },
     greenCreditsEarned: { type: Number, min: 0, default: 0 },
+    // Source citation for the factor used (shown inline in the UI).
+    factorSource: { type: String, default: '' },
     eventType: {
       type: String,
-      enum: ['sale', 'donation', 'repair', 'resell'],
-      default: 'resell',
+      enum: ['resale_sale', 'donation', 'liquidate', 'sale', 'repair', 'resell'],
+      default: 'resale_sale',
     },
   },
   { timestamps: true }
 );
+
+// One impact record per item — guarantees idempotent computation.
+sustainabilitySchema.index({ itemId: 1 }, { unique: true });
 
 module.exports = mongoose.model('SustainabilityImpact', sustainabilitySchema);

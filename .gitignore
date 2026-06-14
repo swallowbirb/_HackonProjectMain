@@ -149,3 +149,6 @@ env/
 
 # One-off ops scripts (may contain bucket/region specifics)
 backend/set_s3_cors.js
+
+# Generated runtime artifacts (donation receipt PDFs, etc.)
+backend/uploads/

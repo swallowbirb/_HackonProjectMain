@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getProductById } from '../services/product.service';
 import { getReviewsByProduct } from '../services/review.service';
 import { createOrder } from '../services/order.service';
+import { redeemCredits } from '../services/sustainability.service';
 import { useCustomUser } from '../context/CustomUserContext';
 import StarRating from '../components/shared/StarRating';
 import ReviewCard from '../components/shared/ReviewCard';
@@ -71,12 +72,16 @@ export default function ProductDetailPage() {
     setShowCheckout(true);
   };
 
-  const handleConfirmPurchase = async (mockCreditCard, paymentMethod = 'prepaid') => {
+  const handleConfirmPurchase = async (mockCreditCard, paymentMethod = 'prepaid', creditsToRedeem = 0) => {
     setIsOrdering(true);
     setOrderError('');
     try {
       const res = await createOrder({ productId: id, quantity: 1, mockCreditCard, paymentMethod });
       if (res.success) {
+        // Phase 8 — redeem green credits against this order if chosen.
+        if (creditsToRedeem > 0) {
+          try { await redeemCredits(creditsToRedeem, res.data?._id); } catch { /* non-fatal */ }
+        }
         setShowCheckout(false);
         setOrderSuccess(true);
         // Mark the nudge event as purchased for analytics (§15)
