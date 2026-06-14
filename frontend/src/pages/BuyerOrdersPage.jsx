@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getBuyerOrders, cancelOrder, advanceFulfillment } from '../services/order.service';
 import { initiateReturn } from '../services/return.service';
 import { getMyItems } from '../services/item.service';
+import GreenCreditsCard from '../components/shared/GreenCreditsCard';
+import { useCustomUser } from '../context/CustomUserContext';
 import { Package, Loader2, Calendar, CreditCard, ChevronRight, RotateCcw, X, ChevronDown, Activity, ArrowRight, Truck, Banknote, Ban } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -42,6 +44,7 @@ const STATUS_META = {
 
 export default function BuyerOrdersPage() {
   const navigate = useNavigate();
+  const { mongoUser } = useCustomUser();
   const [activeTab, setActiveTab] = useState('orders');
   const [orders, setOrders] = useState([]);
   const [myItems, setMyItems] = useState([]);
@@ -173,6 +176,13 @@ export default function BuyerOrdersPage() {
         {/* Header + Tabs */}
         <div className="mb-6">
           <h1 className="text-3xl font-black text-gray-900 mb-4">Your Orders</h1>
+
+          {mongoUser?._id && (
+            <div className="mb-5">
+              <GreenCreditsCard userId={mongoUser._id} />
+            </div>
+          )}
+
           <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
             <button
               onClick={() => setActiveTab('orders')}
@@ -309,13 +319,15 @@ export default function BuyerOrdersPage() {
                             >
                               Write a product review
                             </Link>
-                            <button
-                              onClick={() => openReturnModal(order)}
-                              className="inline-flex items-center gap-1.5 justify-center bg-white border border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors shadow-sm"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              Return item
-                            </button>
+                            {(order.fulfillmentStatus || 'placed') === 'delivered' && order.status !== 'cancelled' && (
+                              <button
+                                onClick={() => openReturnModal(order)}
+                                className="inline-flex items-center gap-1.5 justify-center bg-white border border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors shadow-sm"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                Return item
+                              </button>
+                            )}
 
                             {/* Phase 7.5 — cancel (festive lock may block) + demo shipping advance */}
                             {order.status !== 'cancelled' && (order.fulfillmentStatus || 'placed') !== 'delivered' && (

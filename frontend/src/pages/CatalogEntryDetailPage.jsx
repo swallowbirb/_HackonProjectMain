@@ -244,13 +244,19 @@ export default function CatalogEntryDetailPage() {
     setShowCheckout(true);
   };
 
-  const handleConfirmPurchase = async (mockCreditCard) => {
+  const handleConfirmPurchase = async (mockCreditCard, paymentMethod = 'prepaid', creditsToRedeem = 0) => {
     if (!selectedOffer) return;
     setIsBuying(true);
     setOrderError('');
     try {
-      const res = await createOrder({ offerId: selectedOffer._id, quantity: 1, mockCreditCard });
+      const res = await createOrder({ offerId: selectedOffer._id, quantity: 1, mockCreditCard, paymentMethod });
       if (res.success) {
+        if (creditsToRedeem > 0) {
+          try {
+            const { redeemCredits } = await import('../services/sustainability.service');
+            await redeemCredits(creditsToRedeem, res.data?._id);
+          } catch { /* non-fatal */ }
+        }
         setShowCheckout(false);
         setOrderSuccess(selectedOffer);
       }

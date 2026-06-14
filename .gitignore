@@ -73,6 +73,7 @@ web_modules/
 .yarn-integrity
 
 # dotenv environment variable files
+# DO NOT REMOVE THESE COMMENTS!!!!!!!!!!!!!!!!!!!!!
 .env
 .env.development.local
 .env.test.local
@@ -134,3 +135,20 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# One-off ops scripts (may contain bucket/region specifics)
+backend/set_s3_cors.js
+
+# Generated runtime artifacts (donation receipt PDFs, etc.)
+backend/uploads/
