@@ -12,7 +12,6 @@ import ReviewForm from '../components/shared/ReviewForm';
 import CheckoutModal from '../components/shared/CheckoutModal';
 import FitReturnNote from '../components/prevention/FitReturnNote';
 import { useCart } from '../context/CartContext';
-import { updateNudgeEvent } from '../services/prevention.service';
 import {
   ShoppingCart, Zap, Shield, Store, ChevronRight, Package,
   CheckCircle, AlertTriangle, ChevronLeft, ChevronRight as ChevRight, Star
@@ -21,7 +20,7 @@ import {
 export default function ProductDetailPage() {
   const { id } = useParams();
   const { role, mongoUser } = useCustomUser();
-  const { cart, addToCart, keepOneOf } = useCart();
+  const { addToCart } = useCart();
   const [product, setProduct] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [reviewMeta, setReviewMeta] = useState({});
@@ -65,10 +64,7 @@ export default function ProductDetailPage() {
     setShowCheckout(true);
   };
 
-  const handleRiskNudgeAdjust = (action) => {
-    if (lastNudgeEventId) {
-      updateNudgeEvent(lastNudgeEventId, { acted: true }).catch(() => {});
-    }
+  const handleRiskNudgeAdjust = (_action) => {
     setShowCheckout(true);
   };
 
@@ -84,13 +80,11 @@ export default function ProductDetailPage() {
         }
         setShowCheckout(false);
         setOrderSuccess(true);
-        // Mark the nudge event as purchased for analytics (§15)
-        if (lastNudgeEventId) {
-          updateNudgeEvent(lastNudgeEventId, { purchased: true }).catch(() => {});
-        }
         // Refresh product to update totalSales
         const productRes = await getProductById(id);
         if (productRes.success) setProduct(productRes.data);
+        // Reset success state after 1s so buyer can order again
+        setTimeout(() => setOrderSuccess(false), 1000);
       }
     } catch (err) {
       if (err.response?.data?.code === 'COD_NOT_AVAILABLE') {

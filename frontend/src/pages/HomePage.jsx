@@ -1,22 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { getPublishedProducts } from '../services/product.service';
 import ProductCard from '../components/shared/ProductCard';
-import CategoryCard from '../components/shared/CategoryCard';
-import { Search, Shield, TrendingUp, Star, ArrowRight, Zap } from 'lucide-react';
-
-const CATEGORIES = [
-  'Electronics', 'Clothing', 'Home & Garden', 'Sports',
-  'Toys', 'Books', 'Automotive', 'Health & Beauty',
-];
-
-
+import { ArrowRight } from 'lucide-react';
 
 export default function HomePage() {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -34,26 +24,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-[#EAEDED]">
-
-
-      {/* Trust/Security Badges */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6 py-4 flex flex-wrap items-center justify-center gap-8">
-          {[
-            { icon: <Shield className="w-5 h-5 text-[#007600]" />, text: 'AI Fraud Detection' },
-            { icon: <Star className="w-5 h-5 text-[#FF9900]" />, text: 'Verified Reviews' },
-            { icon: <TrendingUp className="w-5 h-5 text-[#007185]" />, text: 'Risk Scoring' },
-            { icon: <Search className="w-5 h-5 text-[#C7511F]" />, text: 'Brand Protection' },
-          ].map(({ icon, text }) => (
-            <div key={text} className="flex items-center gap-2 text-sm text-gray-700 font-medium">
-              {icon} {text}
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="max-w-[1200px] mx-auto px-6 py-8 space-y-10">
-
 
         {/* Featured Products */}
         <section>
