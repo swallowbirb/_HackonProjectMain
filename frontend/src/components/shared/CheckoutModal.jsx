@@ -172,21 +172,21 @@ export default function CheckoutModal({
                             {item.title}
                           </span>
                           <span className="font-medium flex-shrink-0">
-                            ₹{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                            ${((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                           </span>
                         </li>
                       ))}
                     </ul>
                     <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between">
                       <span className="font-bold text-gray-900">Total</span>
-                      <span className="text-xl font-bold text-[#B12704]">₹{total.toFixed(2)}</span>
+                      <span className="text-xl font-bold text-[#B12704]">${total.toFixed(2)}</span>
                     </div>
                   </>
                 ) : (
                   <>
                     <p className="text-sm text-gray-500 mb-1">Purchasing:</p>
                     <p className="font-medium text-gray-900 line-clamp-2 leading-tight">{productTitle}</p>
-                    <p className="text-xl font-bold text-[#B12704] mt-2">₹{total.toFixed(2)}</p>
+                    <p className="text-xl font-bold text-[#B12704] mt-2">${total.toFixed(2)}</p>
                   </>
                 )}
               </div>
