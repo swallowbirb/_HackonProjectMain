@@ -320,13 +320,24 @@ export default function BuyerOrdersPage() {
                               Write a product review
                             </Link>
                             {(order.fulfillmentStatus || 'placed') === 'delivered' && order.status !== 'cancelled' && (
-                              <button
-                                onClick={() => openReturnModal(order)}
-                                className="inline-flex items-center gap-1.5 justify-center bg-white border border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors shadow-sm"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                                Return item
-                              </button>
+                              (() => {
+                                const hasItem = myItems.some(
+                                  (item) => item.originalOrderId === order._id || item.originalOrderId?._id === order._id || String(item.originalOrderId) === String(order._id)
+                                );
+                                return hasItem ? (
+                                  <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 border border-amber-200 px-4 py-2 rounded-lg font-medium">
+                                    <RotateCcw className="w-3.5 h-3.5" /> Return in Progress
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => openReturnModal(order)}
+                                    className="inline-flex items-center gap-1.5 justify-center bg-white border border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 text-gray-700 font-medium px-4 py-2 rounded-lg text-sm transition-colors shadow-sm"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    Return item
+                                  </button>
+                                );
+                              })()
                             )}
 
                             {/* Phase 7.5 — cancel (festive lock may block) + demo shipping advance */}

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCustomUser } from '../../context/CustomUserContext';
 import { UserButton, useAuth } from '@clerk/clerk-react';
 import { CustomSignedIn, CustomSignedOut } from '../../context/CustomUserContext';
-import { Search, ShoppingCart, MapPin, ChevronDown, Menu } from 'lucide-react';
+import { Search, ShoppingCart, ChevronDown, Menu, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCart } from '../../context/CartContext';
 
@@ -20,6 +20,7 @@ export default function Navbar() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -70,7 +71,14 @@ export default function Navbar() {
           <form onSubmit={handleSearch} className="flex-1 flex h-10 min-w-0">
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => {
+                const cat = e.target.value;
+                setSelectedCategory(cat);
+                const params = new URLSearchParams();
+                if (searchQuery.trim()) params.set('q', searchQuery.trim());
+                if (cat !== 'All') params.set('category', cat);
+                navigate(`/search?${params.toString()}`);
+              }}
               className="hidden md:block bg-[#f3f3f3] text-black text-xs px-2 rounded-l-md border-r border-gray-300 flex-shrink-0 cursor-pointer hover:bg-[#e5e5e5] transition-colors"
             >
               {CATEGORIES.map((cat) => (
@@ -210,13 +218,106 @@ export default function Navbar() {
           </div>
 
           {/* Mobile menu button */}
-          <button className="md:hidden ml-auto">
-            <Menu className="w-6 h-6 text-white" />
+          <button
+            className="md:hidden ml-auto p-1 rounded hover:bg-white/10 transition-colors"
+            onClick={() => setIsMobileMenuOpen(prev => !prev)}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? <X className="w-6 h-6 text-white" /> : <Menu className="w-6 h-6 text-white" />}
           </button>
         </div>
       </div>
 
-
+      {/* Mobile drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden bg-[#232f3e] border-t border-[#3a4553] overflow-hidden"
+          >
+            <div className="px-4 py-3 space-y-1">
+              <Link
+                to="/"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block py-2 px-3 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                Home
+              </Link>
+              <Link
+                to="/search"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block py-2 px-3 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                Browse Products
+              </Link>
+              <Link
+                to="/resale"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block py-2 px-3 text-sm text-emerald-400 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                Shop Second-Life
+              </Link>
+              {(!role || role === 'buyer') && (
+                <>
+                  <Link
+                    to="/orders"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-2 px-3 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    Returns & Orders
+                  </Link>
+                  <Link
+                    to="/sell-secondhand"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-2 px-3 text-sm text-emerald-400 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    Sell Second-Hand
+                  </Link>
+                  <Link
+                    to="/cart"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-2 px-3 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <ShoppingCart className="w-4 h-4" /> Cart {cartCount > 0 && <span className="bg-[#FF9900] text-black text-[11px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{cartCount}</span>}
+                  </Link>
+                </>
+              )}
+              <div className="border-t border-[#3a4553] pt-2 mt-2">
+                <CustomSignedOut>
+                  <Link
+                    to="/sign-in"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-2 px-3 text-sm text-[#FF9900] font-semibold hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    Sign In
+                  </Link>
+                </CustomSignedOut>
+                <CustomSignedIn>
+                  <Link
+                    to={getDashboardLink()}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-2 px-3 text-sm text-zinc-200 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    Dashboard
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      localStorage.removeItem('mock_clerk_id');
+                      signOut();
+                    }}
+                    className="w-full text-left py-2 px-3 text-sm text-red-400 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    Sign Out
+                  </button>
+                </CustomSignedIn>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

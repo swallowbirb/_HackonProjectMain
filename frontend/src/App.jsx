@@ -15,6 +15,7 @@ import SellerDashboard from './pages/SellerDashboard';
 import NewProductPage from './pages/NewProductPage';
 import EditProductPage from './pages/EditProductPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import DemandMapPage from './pages/admin/DemandMapPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import StorePage from './pages/StorePage';
@@ -90,10 +91,10 @@ function RoleGuard({ children }) {
 
 function LoadingScreen() {
   return (
-    <div className="flex h-screen items-center justify-center bg-black text-white">
+    <div className="flex h-screen items-center justify-center bg-[#EAEDED]">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-4 border-zinc-700 border-t-white rounded-full animate-spin" />
-        <p className="text-sm text-zinc-500">Loading...</p>
+        <div className="w-8 h-8 border-4 border-gray-300 border-t-[#FF9900] rounded-full animate-spin" />
+        <p className="text-sm text-gray-400">Loading...</p>
       </div>
     </div>
   );
@@ -101,24 +102,24 @@ function LoadingScreen() {
 
 function BannedScreen() {
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-8 font-sans">
+    <div className="min-h-screen bg-[#EAEDED] flex items-center justify-center p-8 font-sans">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl"
+        className="max-w-md w-full bg-white border border-gray-200 rounded-2xl p-8 text-center space-y-6 shadow-sm"
       >
-        <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto text-red-500">
+        <div className="w-16 h-16 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-center mx-auto text-red-500">
           <Ban className="w-8 h-8" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Account Banned</h1>
-          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+          <h1 className="text-2xl font-bold text-gray-900">Account Banned</h1>
+          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
             Your seller account has been permanently banned due to security or policy violations.
           </p>
         </div>
         <a
           href="mailto:support@marketplace.security"
-          className="inline-flex items-center justify-center w-full px-5 py-2.5 rounded-xl text-sm font-medium bg-white text-black hover:bg-zinc-200 transition-colors"
+          className="inline-flex items-center justify-center w-full px-5 py-2.5 rounded-xl text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors"
         >
           Contact Support
         </a>
@@ -206,6 +207,10 @@ function App() {
               <Route
                 path="/admin/dashboard"
                 element={<CustomSignedIn><AdminGuard><AdminDashboard /></AdminGuard></CustomSignedIn>}
+              />
+              <Route
+                path="/admin/demand-map"
+                element={<CustomSignedIn><AdminGuard><DemandMapPage /></AdminGuard></CustomSignedIn>}
               />
             </Routes>
           </RoleGuard>

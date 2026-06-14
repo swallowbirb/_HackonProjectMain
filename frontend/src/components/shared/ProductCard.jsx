@@ -13,9 +13,9 @@ export default function ProductCard({ product, index = 0 }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.05 }}
+      transition={{ duration: 0.25, delay: Math.min(index * 0.03, 0.3) }}
     >
       <Link to={product.isCatalogEntry ? `/p/${product._id}` : `/products/${product._id}`} className="block group">
         <div className="amz-card rounded-md overflow-hidden h-full flex flex-col cursor-pointer">
@@ -45,8 +45,8 @@ export default function ProductCard({ product, index = 0 }) {
               <StarRating rating={product.averageRating} count={product.reviewCount} size="sm" />
             )}
 
-            {/* Price */}
-            <div className="mt-auto pt-1">
+            {/* Bottom group: price, seller, badge */}
+            <div className="mt-auto pt-1 flex flex-col gap-1">
               {product.price !== undefined && product.price !== null ? (
                 <span className="text-lg font-bold text-[#B12704]">
                   ₹{Number(product.price).toFixed(2)}
@@ -56,26 +56,26 @@ export default function ProductCard({ product, index = 0 }) {
                   View Offers
                 </span>
               )}
+
+              {/* Seller / Brand Link */}
+              {product.isCatalogEntry ? (
+                <p className="text-[11px] text-gray-500 truncate flex items-center gap-1">
+                  by <Link to={`/brand-store/${product.brandId || product.brand?._id}`} className="text-[#007185] hover:underline hover:text-[#C7511F]">{product.brandName || 'Verified Brand'}</Link>
+                  <span className="inline-flex items-center justify-center bg-[#10b981] text-white text-[8px] font-bold px-1 py-0.5 rounded ml-1" title="Verified Brand Catalog Entry">✓ Verified</span>
+                </p>
+              ) : (
+                <p className="text-[11px] text-gray-500 truncate">
+                  by <Link to={`/seller/${product.sellerId?._id}/store`} className="text-[#007185] hover:underline hover:text-[#C7511F]">{sellerName}</Link>
+                </p>
+              )}
+
+              {/* Top-rated seller badge */}
+              {product.sellerId?.averageRating >= 4 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] text-[#007600] font-medium">
+                  <Package className="w-3 h-3" /> Top Rated Seller
+                </span>
+              )}
             </div>
-
-            {/* Seller / Brand Link */}
-            {product.isCatalogEntry ? (
-              <p className="text-[11px] text-gray-500 truncate flex items-center gap-1 mt-auto">
-                by <Link to={`/brand-store/${product.brandId || product.brand?._id}`} className="text-[#007185] hover:underline hover:text-[#C7511F]">{product.brandName || 'Verified Brand'}</Link>
-                <span className="inline-flex items-center justify-center bg-[#10b981] text-white text-[8px] font-bold px-1 py-0.5 rounded ml-1" title="Verified Brand Catalog Entry">✓ Verified</span>
-              </p>
-            ) : (
-              <p className="text-[11px] text-gray-500 truncate mt-auto">
-                by <Link to={`/seller/${product.sellerId?._id}/store`} className="text-[#007185] hover:underline hover:text-[#C7511F]">{sellerName}</Link>
-              </p>
-            )}
-
-            {/* Verified seller badge */}
-            {product.sellerId?.averageRating >= 4 && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] text-[#007600] font-medium">
-                <Package className="w-3 h-3" /> Prime-eligible
-              </span>
-            )}
           </div>
         </div>
       </Link>

@@ -8,11 +8,11 @@ const CATEGORIES = [
 ];
 
 const PRICE_RANGES = [
-  { label: 'Under $25', min: 0, max: 25 },
-  { label: '$25 – $50', min: 25, max: 50 },
-  { label: '$50 – $100', min: 50, max: 100 },
-  { label: '$100 – $250', min: 100, max: 250 },
-  { label: 'Over $250', min: 250, max: undefined },
+  { label: 'Under ₹25', min: 0, max: 25 },
+  { label: '₹25 – ₹50', min: 25, max: 50 },
+  { label: '₹50 – ₹100', min: 50, max: 100 },
+  { label: '₹100 – ₹250', min: 100, max: 250 },
+  { label: 'Over ₹250', min: 250, max: undefined },
 ];
 
 export default function FilterSidebar({ filters, onFilterChange, onClear }) {

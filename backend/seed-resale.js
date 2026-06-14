@@ -10,6 +10,9 @@
  * Run: node seed-resale.js
  */
 require('dotenv').config();
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 const mongoose = require('mongoose');
 
 const User = require('./src/modules/users/user.model');
@@ -123,22 +126,19 @@ async function buildPersona(persona, seller, idx) {
     firstName: persona.handle,
   });
 
-  // For returns we attach an original product owned by the demo seller so the
-  // seller-resolution + originalPrice paths are exercised.
+  // For all personas create an original product so originalPrice is always set.
   let originalProductId = null;
-  if (persona.intakePath === 'return') {
-    const product = await Product.create({
-      title: persona.productTitle,
-      description: `Original listing for ${persona.productTitle}.`,
-      price: persona.originalPrice,
-      category: persona.category,
-      images: [IMG(`${persona.handle}-orig`)],
-      condition: 'New',
-      sellerId: seller._id,
-      status: 'approved',
-    });
-    originalProductId = product._id;
-  }
+  const product = await Product.create({
+    title: persona.productTitle,
+    description: `Original listing for ${persona.productTitle}.`,
+    price: persona.originalPrice,
+    category: persona.category,
+    images: [IMG(`${persona.handle}-orig`)],
+    condition: 'New',
+    sellerId: seller._id,
+    status: 'approved',
+  });
+  originalProductId = product._id;
 
   // Item is created already in ROUTED state (Phase A would have done this).
   const item = await Item.create({

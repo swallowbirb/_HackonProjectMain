@@ -1,4 +1,5 @@
 import Navbar from '../components/shared/Navbar';
+import Footer from '../components/shared/Footer';
 
 export default function MarketplaceLayout({ children }) {
   return (
@@ -7,6 +8,7 @@ export default function MarketplaceLayout({ children }) {
       <main className="flex-1">
         {children}
       </main>
+      <Footer />
     </div>
   );
 }

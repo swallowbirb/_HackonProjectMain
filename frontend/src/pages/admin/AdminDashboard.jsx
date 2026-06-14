@@ -1187,7 +1187,7 @@ const AdminDashboard = () => {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
           >
-            {activeTab === 'products' ? <ProductsTab /> : activeTab === 'sellers' ? <SellersTab /> : activeTab === 'reviews' ? <ReviewsTab /> : <FestiveTab />}
+            {activeTab === 'products' ? <ProductsTab /> : activeTab === 'sellers' ? <SellersTab /> : activeTab === 'reviews' ? <ReviewsTab /> : activeTab === 'festive' ? <FestiveTab /> : <PromptsTab />}
           </motion.div>
         </AnimatePresence>
       </div>
