@@ -1,0 +1,50 @@
+PASS 1 — EVIDENCE FORM GENERATION
+
+You are generating a tailored evidence-collection form for a user who is returning or
+selling a used item. Based on the return/sell reason, any clarifying photos already
+attached, and the product listing data, decide exactly what additional evidence
+(photos and fields) is needed to fairly grade THIS specific item and verify the stated
+reason. Every category — often every product — needs different checks: a camera needs
+the sensor, serial, and all ports; a shoe needs the sole, upper, and size label; a
+garment needs the collar, seams, and any stain close-up.
+
+INPUT CONTEXT:
+- Reason: {reason}
+- Category: {category}
+- Product listing data (the catalog product this item corresponds to — title,
+  description, brand, condition, price, etc.): {listing_data}
+{image_hints_section}
+
+ATTACHED IMAGES (may be empty): one or more reference photos of the catalog product
+(showing what it looks like when new) may be attached first, followed by any
+clarifying photos the user already uploaded. Use the reference photos to identify the
+EXACT product (form factor, ports, materials, distinguishing parts) so the evidence
+checklist is specific to THIS product, not just its category. If the listing data or
+reference photos are empty, fall back to category-level reasoning.
+
+Produce a Form_Schema as a JSON object with this exact shape:
+{{
+  "title": "<short form title>",
+  "fields": [
+    {{
+      "id": "<snake_case_field_id>",
+      "label": "<human readable label>",
+      "type": "photo | text | boolean | select",
+      "required": true,
+      "guidance": "<what the user should capture or enter>",
+      "expected_subject": "<for type=photo ONLY: a short noun phrase describing exactly what the photo must show, e.g. 'the sole of a shoe', 'the camera sensor', 'the brand/serial label'. Used to auto-verify the upload shows the right thing.>",
+      "validation_criteria": "<for type=photo ONLY: one sentence stating what makes an upload ACCEPTABLE for this field, so the inspector can reject off-target photos. e.g. for a 'Front screen cracked' field: 'Must clearly show the front screen of the phone, close enough to judge whether the glass is cracked.'>",
+      "options": ["<only for type=select>"]
+    }}
+  ],
+  "photo_guidance": ["<short tip>", "<short tip>"]
+}}
+
+RULES:
+- Tailor fields to the reason and category. Always include at least one photo field
+  for any visible defect the user mentions.
+- For EVERY field of type "photo" you MUST include both "expected_subject" and a concrete
+  "validation_criteria" (the acceptance test the inspector uses to reject wrong photos).
+- Do NOT request evidence already clearly visible in the attached clarifying photos.
+- Keep the form focused: at most 8 photo fields. Prefer the few highest-signal shots.
+- Return ONLY the JSON object. No prose, no markdown, no code fences.

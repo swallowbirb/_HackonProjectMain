@@ -1,0 +1,90 @@
+PER-FIELD EVIDENCE INSPECTION (Pass 1.5)
+
+You are inspecting the photo SET a user uploaded for a SINGLE form field of a
+condition-grading form. There are {photo_count} photo(s). Judge the SET as a
+whole — does it satisfy this field's requirement? Some photos may be unusable
+while the field as a whole is still acceptable; conversely, every photo could
+be sharp and on-topic but the set could still be incomplete (e.g. missing one
+of two required views).
+
+PHOTOS PROVIDED (use the URL exactly as written when emitting per_photo[].image_url):
+{photo_index}
+
+STEP 1 — VERIFY THE SET FIRST (this gates everything else):
+  (a) Do the photos show the SAME KIND of item as the catalog product below?
+      If clearly unrelated to the product (a pet, a person, food, a random scene),
+      the field FAILS.
+  (b) Does the SET satisfy this field's expected subject and validity criteria?
+      For multi-view fields ("front and back", "both sides"), all required views
+      must be present across the set — but they can be in DIFFERENT photos, e.g.
+      one photo shows the front and another shows the back is fine. List any
+      missing views in `missing_views`.
+  (c) Is the evidence original — not a screenshot, not a photo of a screen, not
+      the product's own catalog/marketing image?
+For baseline angle fields (front/rear/left/right) the goal is simply to confirm
+the product is genuine and present from that angle.
+
+If STEP 1 fails on any point: accepted = false, write a single, concise,
+field-level reupload_reason that tells the user what to add or replace. Still
+fill `per_photo` with one entry per provided photo so the UI can flag which
+specific photos were the problem (e.g. usable=false on a screenshot).
+
+STEP 2 — ONLY IF VERIFIED: describe what you see across the set. YOU DESCRIBE,
+YOU DO NOT GRADE. Do NOT assign a condition grade (A/B/C/D), quality score, or
+defect severity — a later synthesis step does all grading. Report neutral,
+factual observations only.
+
+FIELD BEING ANSWERED:
+- id: {field_id}
+- label: {field_label}
+- expected subject: {expected_subject}
+- validity criteria (what makes this set acceptable): {validation_criteria}
+
+CATALOG PRODUCT (what the item SHOULD be):
+{listing_data}
+
+USER'S STATED REASON / CLAIM:
+{reason}
+
+DECISION RULES (be LENIENT on quality, STRICT on identity / required views):
+- accepted = false when: items shown are clearly a DIFFERENT kind of object
+  (identity mismatch); OR the set is missing a REQUIRED view explicitly named
+  in the validity criteria; OR every photo is so blurry/dark/cropped the item
+  cannot be assessed; OR every photo is a screenshot/catalog image.
+- accepted = true when the set covers the required views and at least one usable
+  photo exists per required view, even if some individual photos are imperfect.
+- If there is no catalog product context, judge identity loosely.
+
+OUTPUT — return ONLY this JSON object, no prose, no code fences:
+{{
+  "accepted": true | false,
+  "reupload_reason": "<short, friendly, specific instruction for the field>" | null,
+  "missing_views": ["<plain English name of a missing view>", "..."],
+  "per_photo": [
+    {{
+      "image_url": "<the exact URL from PHOTO_n above>",
+      "role": "<what THIS photo shows, e.g. 'front of phone' or 'left side'>",
+      "usable": true | false,
+      "note": "<short reason if usable=false; otherwise null>"
+    }}
+    /* one entry per photo provided */
+  ],
+  "observations": ["<neutral factual note across the set>", "..."],
+  "ocr_text_per_photo": {{ "<photo url>": "<text legible in that photo>" }},
+  "condition_signals": ["<described wear/damage, NOT graded>", "..."]
+}}
+
+NOTES:
+- reupload_reason MUST be null when accepted = true, and a single field-level
+  instruction when false (e.g. "These photos only show the front of the phone.
+  Please add a photo of the back tilted at a 45-degree angle so we can see
+  both sides.").
+- per_photo MUST have exactly one entry per photo provided in PHOTOS PROVIDED
+  above. Use the URL from that list verbatim.
+- observations / condition_signals are plain descriptions ("2cm scuff on
+  upper-left toe", "screen has no visible cracks"). Never include a grade or
+  severity word like minor/major.
+- ocr_text_per_photo: include only photos where text is actually legible. Omit
+  photos with no readable text.
+- missing_views is empty when the set is complete; otherwise it lists the
+  views the user still needs to add.

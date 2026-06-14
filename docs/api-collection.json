@@ -1,0 +1,114 @@
+{
+  "info": {
+    "name": "Second-Life Commerce — Phase 3.5 Integration",
+    "description": "Intake → Grade flow endpoints (returns, secondhand, items, uploads). Set {{baseUrl}} and {{token}} (Bearer mock_<clerkId> in dev).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5001/api" },
+    { "key": "token", "value": "mock_<clerkId>" },
+    { "key": "itemId", "value": "" },
+    { "key": "orderId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Initiate Return",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/returns", "host": ["{{baseUrl}}"], "path": ["returns"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"reasonCode\": \"defective\",\n  \"reasonText\": \"Screen flickers after 10 minutes\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Submit Return Evidence",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/returns/{{itemId}}/evidence", "host": ["{{baseUrl}}"], "path": ["returns", "{{itemId}}", "evidence"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"photos\": [\"https://s3.../evidence1.jpg\", \"https://s3.../evidence2.jpg\"]\n}"
+        }
+      }
+    },
+    {
+      "name": "Initiate Sell-Used (from order)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/secondhand/from-order", "host": ["{{baseUrl}}"], "path": ["secondhand", "from-order"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"description\": \"Used 6 months, works perfectly\",\n  \"askingPrice\": 0\n}"
+        }
+      }
+    },
+    {
+      "name": "Submit Sell-Used Evidence",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/secondhand/{{itemId}}/evidence", "host": ["{{baseUrl}}"], "path": ["secondhand", "{{itemId}}", "evidence"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"photos\": [\"https://s3.../evidence1.jpg\"]\n}"
+        }
+      }
+    },
+    {
+      "name": "Get Item Status (unified)",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": { "raw": "{{baseUrl}}/items/{{itemId}}/status", "host": ["{{baseUrl}}"], "path": ["items", "{{itemId}}", "status"] }
+      }
+    },
+    {
+      "name": "Get Item Logs (developer stream)",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": { "raw": "{{baseUrl}}/items/{{itemId}}/logs", "host": ["{{baseUrl}}"], "path": ["items", "{{itemId}}", "logs"] }
+      }
+    },
+    {
+      "name": "S3 Pre-signed Upload URL",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/uploads/presign", "host": ["{{baseUrl}}"], "path": ["uploads", "presign"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fileName\": \"evidence1.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"itemId\": \"{{itemId}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Get Trust Profile",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": { "raw": "{{baseUrl}}/trust/{{userId}}", "host": ["{{baseUrl}}"], "path": ["trust", "{{userId}}"] }
+      }
+    }
+  ]
+}

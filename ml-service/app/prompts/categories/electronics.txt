@@ -1,0 +1,14 @@
+CATEGORY OVERLAY — ELECTRONICS
+
+When grading electronics, weight these category-specific factors:
+- Functional verification: powers on, screen/display intact, ports and buttons work.
+  Functionality is the dominant grading factor; non-functional => D.
+- Screen/body condition: cracks, dead pixels, deep scratches, dents.
+- Serial number / model label: extract via OCR; verify it is present and consistent
+  with the catalog product. Missing or mismatched serial is an authenticity signal.
+- Accessories and power: presence of charger/cables/original adapter.
+- Battery / wear indicators where visible.
+
+Required evidence fields for electronics: powered-on screen photo, serial/model label
+close-up, all ports/sides, included accessories. If the device cannot be confirmed to
+power on, add "function_verified" to missingEvidence and cap confidence at medium.

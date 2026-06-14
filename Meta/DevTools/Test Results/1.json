@@ -1,0 +1,971 @@
+[
+  {
+    "_id": "6a2da9cd8438db1d8bb456c9",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "INITIATE",
+    "message": "🚀 Return initiated by user",
+    "level": "info",
+    "phase": "init",
+    "source": "server",
+    "seq": 1,
+    "metadata": {
+      "intakePath": "return",
+      "reason": "defective"
+    },
+    "timestamp": "2026-06-13T19:04:45.911Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9cd8438db1d8bb456cb",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "TRUST_COMPLETE",
+    "message": "✅ Trust tier: TRUSTED",
+    "level": "success",
+    "phase": "trust",
+    "source": "server",
+    "seq": 2,
+    "metadata": {
+      "tier": "trusted"
+    },
+    "timestamp": "2026-06-13T19:04:45.974Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9ce8438db1d8bb456cd",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ITEM_CREATED",
+    "message": "✅ Item record created in database",
+    "level": "success",
+    "phase": "init",
+    "source": "server",
+    "seq": 3,
+    "metadata": {
+      "status": "INITIATED"
+    },
+    "timestamp": "2026-06-13T19:04:46.020Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9d78438db1d8bb4570b",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "EVIDENCE_SUBMIT",
+    "message": "📤 Evidence submitted: 1 photo(s)",
+    "level": "info",
+    "phase": "evidence",
+    "source": "server",
+    "seq": 4,
+    "metadata": {
+      "photoCount": 1
+    },
+    "timestamp": "2026-06-13T19:04:55.471Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9d78438db1d8bb45711",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "STATUS_UPDATE",
+    "message": "📊 Status changed to EVIDENCE_PENDING",
+    "level": "info",
+    "phase": "evidence",
+    "source": "server",
+    "seq": 5,
+    "timestamp": "2026-06-13T19:04:55.715Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9d78438db1d8bb45717",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "PASS2_START",
+    "message": "⚙️ Starting AI grading analysis...",
+    "level": "info",
+    "phase": "request",
+    "source": "server",
+    "seq": 6,
+    "timestamp": "2026-06-13T19:04:55.955Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9d88438db1d8bb45719",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "GRADING_REQUEST",
+    "message": "📡 POST http://localhost:8000/grade/ — 1 evidence photo(s), 0 listing reference photo(s)",
+    "level": "info",
+    "phase": "request",
+    "source": "server",
+    "seq": 7,
+    "metadata": {
+      "endpoint": "http://localhost:8000/grade/",
+      "timeout_ms": 30000,
+      "category": "Electronics",
+      "reason": "jfwop",
+      "evidencePhotoCount": 1,
+      "listingReferenceCount": 0,
+      "hasCatalogHashes": false,
+      "expectedPrimaryModel": "amazon.nova-pro-v1:0",
+      "expectedFallbackModel": "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    },
+    "timestamp": "2026-06-13T19:04:56.014Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9d88438db1d8bb4571b",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ANALYSIS_WARNING",
+    "message": "⚠️ No listing reference photos available for this product — visual comparison (OpenCV color delta, CLIP similarity) will be skipped. Grading proceeds on evidence photos alone.",
+    "level": "warn",
+    "phase": "request",
+    "source": "server",
+    "seq": 8,
+    "metadata": {
+      "reason": "no_reference_images"
+    },
+    "timestamp": "2026-06-13T19:04:56.074Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9d88438db1d8bb45721",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "FRAUD_CHECK",
+    "message": "🛡️ ML pipeline started: fraud preflight → parallel analysis → Bedrock Pass 2...",
+    "level": "info",
+    "phase": "request",
+    "source": "server",
+    "seq": 9,
+    "timestamp": "2026-06-13T19:04:56.141Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb4574f",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "GRADE_RECEIVED",
+    "message": "📡 ML /grade received: 1 evidence photo(s), 0 listing reference(s), category=Electronics, claim=\"jfwop\"",
+    "level": "info",
+    "phase": "request",
+    "source": "ml",
+    "seq": 10001,
+    "metadata": {
+      "item_id": "6a2da9cd8438db1d8bb456c4",
+      "photo_count": 1,
+      "reference_count": 0,
+      "category": "Electronics",
+      "sinceStartMs": 0.1
+    },
+    "timestamp": "2026-06-13T19:04:56.206Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45750",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "FRAUD_PREFLIGHT",
+    "message": "🛡️ Fraud preflight: checking 1 photo(s) against 0 catalog hash(es) (perceptual-hash, EXIF camera data, Rekognition moderation)",
+    "level": "info",
+    "phase": "fraud",
+    "source": "ml",
+    "seq": 10002,
+    "metadata": {
+      "sinceStartMs": 0.9
+    },
+    "timestamp": "2026-06-13T19:04:56.207Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45751",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "IMAGE_FETCH",
+    "message": "❌ Could not fetch fraud photo #1 (HTTP 403) — S3 returned 403 Forbidden (presigned URL expired or bucket policy).",
+    "level": "error",
+    "phase": "fraud",
+    "source": "ml",
+    "durationMs": 706.9,
+    "seq": 10003,
+    "metadata": {
+      "url": "…1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png",
+      "http_status": 403,
+      "error_type": "HTTPStatusError",
+      "error_detail": "Client error '403 Forbidden' for url 'https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+      "sinceStartMs": 707.9
+    },
+    "timestamp": "2026-06-13T19:04:56.914Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45752",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "FRAUD_RESULT",
+    "message": "⚠️ Fraud preflight SOFT — triggering signal: missing_exif",
+    "level": "warn",
+    "phase": "fraud",
+    "source": "ml",
+    "seq": 10004,
+    "metadata": {
+      "classification": "SOFT",
+      "triggering_signal": "missing_exif",
+      "phash_match": false,
+      "exif_has_camera_data": false,
+      "rekognition_web_match": false,
+      "photos_fetched": 0,
+      "notes": [
+        "could not fetch https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png for fraud preflight"
+      ],
+      "sinceStartMs": 708.8
+    },
+    "timestamp": "2026-06-13T19:04:56.915Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45753",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ANALYSIS_FANOUT",
+    "message": "🔬 Fanning out 4 parallel analyses (OpenCV, CLIP, Rekognition, Textract) over 1 evidence + 0 reference photo(s)",
+    "level": "info",
+    "phase": "analysis",
+    "source": "ml",
+    "seq": 10005,
+    "metadata": {
+      "photo_count": 1,
+      "reference_count": 0,
+      "sinceStartMs": 709.2
+    },
+    "timestamp": "2026-06-13T19:04:56.916Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45754",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "IMAGE_FETCH",
+    "message": "❌ Could not fetch evidence #1 (Textract) (HTTP 403) — S3 returned 403 Forbidden (presigned URL expired or bucket policy).",
+    "level": "error",
+    "phase": "analysis",
+    "source": "ml",
+    "durationMs": 659.5,
+    "seq": 10006,
+    "metadata": {
+      "url": "…1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png",
+      "http_status": 403,
+      "error_type": "HTTPStatusError",
+      "error_detail": "Client error '403 Forbidden' for url 'https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+      "sinceStartMs": 2326.8
+    },
+    "timestamp": "2026-06-13T19:04:58.533Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45755",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "IMAGE_FETCH",
+    "message": "❌ Could not fetch evidence #1 (Rekognition) (HTTP 403) — S3 returned 403 Forbidden (presigned URL expired or bucket policy).",
+    "level": "error",
+    "phase": "analysis",
+    "source": "ml",
+    "durationMs": 1122.2,
+    "seq": 10007,
+    "metadata": {
+      "url": "…1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png",
+      "http_status": 403,
+      "error_type": "HTTPStatusError",
+      "error_detail": "Client error '403 Forbidden' for url 'https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+      "sinceStartMs": 2327.7
+    },
+    "timestamp": "2026-06-13T19:04:58.534Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45756",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ANALYSIS_OPENCV",
+    "message": "🎨 OpenCV colour comparison skipped (no_reference)",
+    "level": "warn",
+    "phase": "analysis",
+    "source": "ml",
+    "seq": 10008,
+    "metadata": {
+      "available": false,
+      "reason": "no_reference",
+      "sinceStartMs": 2329.2
+    },
+    "timestamp": "2026-06-13T19:04:58.536Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45757",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ANALYSIS_CLIP",
+    "message": "🧠 CLIP similarity skipped/unavailable (model or image unavailable)",
+    "level": "warn",
+    "phase": "analysis",
+    "source": "ml",
+    "seq": 10009,
+    "metadata": {
+      "max": 0,
+      "avg": 0,
+      "available": false,
+      "compared": 0,
+      "sinceStartMs": 2329.5
+    },
+    "timestamp": "2026-06-13T19:04:58.536Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45758",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ANALYSIS_REKOGNITION",
+    "message": "🏷️ Rekognition: 0 label(s), 0 defect candidate(s). Top: none",
+    "level": "success",
+    "phase": "analysis",
+    "source": "ml",
+    "seq": 10010,
+    "metadata": {
+      "label_count": 0,
+      "defect_count": 0,
+      "defect_candidates": [],
+      "sinceStartMs": 2329.9
+    },
+    "timestamp": "2026-06-13T19:04:58.536Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45759",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ANALYSIS_TEXTRACT",
+    "message": "🔤 Textract OCR: 0 line(s)",
+    "level": "success",
+    "phase": "analysis",
+    "source": "ml",
+    "seq": 10011,
+    "metadata": {
+      "line_count": 0,
+      "sample": [],
+      "sinceStartMs": 2329.9
+    },
+    "timestamp": "2026-06-13T19:04:58.536Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb4575a",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ANALYSIS_COMPLETE",
+    "message": "🔬 Parallel analysis finished in 1621ms with 2 warning(s): opencv_color_unavailable, clip_similarity_unavailable",
+    "level": "warn",
+    "phase": "analysis",
+    "source": "ml",
+    "durationMs": 1620.7,
+    "seq": 10012,
+    "metadata": {
+      "warnings": [
+        "opencv_color_unavailable",
+        "clip_similarity_unavailable"
+      ],
+      "sinceStartMs": 2330
+    },
+    "timestamp": "2026-06-13T19:04:58.536Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb4575b",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "PASS2_PROMPT",
+    "message": "📝 Pass 2 prompt composed (4884 chars, category=Electronics). Sending the TEXT analysis summary only (no raw images) to Bedrock.",
+    "level": "info",
+    "phase": "pass2",
+    "source": "ml",
+    "seq": 10013,
+    "metadata": {
+      "prompt_chars": 4884,
+      "category": "Electronics",
+      "sinceStartMs": 2331.9
+    },
+    "timestamp": "2026-06-13T19:04:58.538Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb4575c",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "BEDROCK_INVOKE",
+    "message": "🤖 Calling Pass 2 grade synthesizer → amazon.nova-pro-v1:0 (primary, nova/converse) with 0 image(s), 4884 prompt chars, max_tokens=2000",
+    "level": "info",
+    "phase": "pass2",
+    "source": "ml",
+    "seq": 10014,
+    "metadata": {
+      "model_id": "amazon.nova-pro-v1:0",
+      "family": "nova/converse",
+      "attempt": 1,
+      "role": "primary",
+      "image_count": 0,
+      "prompt_chars": 4884,
+      "max_tokens": 2000,
+      "temperature": 0,
+      "sinceStartMs": 2332
+    },
+    "timestamp": "2026-06-13T19:04:58.538Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb4575d",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "BEDROCK_INVOKE",
+    "message": "❌ Pass 2 grade synthesizer FAILED on amazon.nova-pro-v1:0 (primary): UnrecognizedClientException — An error occurred (UnrecognizedClientException) when calling the Converse operation: The security token included in the request is invalid.. Retrying on fallback anthropic.claude-3-5-sonnet-20241022-v2:0…",
+    "level": "error",
+    "phase": "pass2",
+    "source": "ml",
+    "durationMs": 1313,
+    "seq": 10015,
+    "metadata": {
+      "model_id": "amazon.nova-pro-v1:0",
+      "role": "primary",
+      "aws_error_code": "UnrecognizedClientException",
+      "will_fallback": true,
+      "error_type": "ClientError",
+      "error_detail": "An error occurred (UnrecognizedClientException) when calling the Converse operation: The security token included in the request is invalid.",
+      "sinceStartMs": 3645
+    },
+    "timestamp": "2026-06-13T19:04:59.851Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb4575e",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "BEDROCK_INVOKE",
+    "message": "🤖 Calling Pass 2 grade synthesizer → anthropic.claude-3-5-sonnet-20241022-v2:0 (fallback, anthropic/invoke_model) with 0 image(s), 4884 prompt chars, max_tokens=2000",
+    "level": "info",
+    "phase": "pass2",
+    "source": "ml",
+    "seq": 10016,
+    "metadata": {
+      "model_id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      "family": "anthropic/invoke_model",
+      "attempt": 2,
+      "role": "fallback",
+      "image_count": 0,
+      "prompt_chars": 4884,
+      "max_tokens": 2000,
+      "temperature": 0,
+      "sinceStartMs": 3645.7
+    },
+    "timestamp": "2026-06-13T19:04:59.852Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb4575f",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "BEDROCK_INVOKE",
+    "message": "❌ Pass 2 grade synthesizer FAILED on anthropic.claude-3-5-sonnet-20241022-v2:0 (fallback): UnrecognizedClientException — An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.. No models left — pipeline will degrade.",
+    "level": "error",
+    "phase": "pass2",
+    "source": "ml",
+    "durationMs": 259.3,
+    "seq": 10017,
+    "metadata": {
+      "model_id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      "role": "fallback",
+      "aws_error_code": "UnrecognizedClientException",
+      "will_fallback": false,
+      "error_type": "ClientError",
+      "error_detail": "An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.",
+      "sinceStartMs": 3905.1
+    },
+    "timestamp": "2026-06-13T19:05:00.111Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45760",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "PASS2_FAILED",
+    "message": "❌ Pass 2 grade synthesis failed — BedrockError: All Bedrock attempts failed: An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.",
+    "level": "error",
+    "phase": "pass2",
+    "source": "ml",
+    "seq": 10018,
+    "metadata": {
+      "error_type": "BedrockError",
+      "error_detail": "All Bedrock attempts failed: An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.",
+      "sinceStartMs": 3905.7
+    },
+    "timestamp": "2026-06-13T19:05:00.112Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45762",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "ML_UNAVAILABLE",
+    "message": "🔌 ML pipeline did not complete. Falling back to manual-review grade. ML service returned HTTP 502: Grade synthesis failed: Bedrock Pass-2 failed: All Bedrock attempts failed: An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.",
+    "level": "error",
+    "phase": "request",
+    "source": "server",
+    "seq": 11,
+    "metadata": {
+      "errorCode": "ERR_BAD_RESPONSE",
+      "errorMessage": "Request failed with status code 502",
+      "httpStatus": 502,
+      "responseBody": {
+        "detail": {
+          "error": "Grade synthesis failed: Bedrock Pass-2 failed: All Bedrock attempts failed: An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.",
+          "status": "failed",
+          "trace": [
+            {
+              "seq": 1,
+              "source": "ml",
+              "phase": "request",
+              "code": "GRADE_RECEIVED",
+              "level": "info",
+              "message": "📡 ML /grade received: 1 evidence photo(s), 0 listing reference(s), category=Electronics, claim=\"jfwop\"",
+              "ts": "2026-06-13T19:04:56.206925+00:00",
+              "since_start_ms": 0.1,
+              "meta": {
+                "item_id": "6a2da9cd8438db1d8bb456c4",
+                "photo_count": 1,
+                "reference_count": 0,
+                "category": "Electronics",
+                "sinceStartMs": 0.1
+              }
+            },
+            {
+              "seq": 2,
+              "source": "ml",
+              "phase": "fraud",
+              "code": "FRAUD_PREFLIGHT",
+              "level": "info",
+              "message": "🛡️ Fraud preflight: checking 1 photo(s) against 0 catalog hash(es) (perceptual-hash, EXIF camera data, Rekognition moderation)",
+              "ts": "2026-06-13T19:04:56.207747+00:00",
+              "since_start_ms": 0.9
+            },
+            {
+              "seq": 3,
+              "source": "ml",
+              "phase": "fraud",
+              "code": "IMAGE_FETCH",
+              "level": "error",
+              "message": "❌ Could not fetch fraud photo #1 (HTTP 403) — S3 returned 403 Forbidden (presigned URL expired or bucket policy).",
+              "ts": "2026-06-13T19:04:56.914728+00:00",
+              "since_start_ms": 707.9,
+              "duration_ms": 706.9,
+              "meta": {
+                "url": "…1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png",
+                "http_status": 403,
+                "error_type": "HTTPStatusError",
+                "error_detail": "Client error '403 Forbidden' for url 'https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+                "sinceStartMs": 707.9
+              }
+            },
+            {
+              "seq": 4,
+              "source": "ml",
+              "phase": "fraud",
+              "code": "FRAUD_RESULT",
+              "level": "warn",
+              "message": "⚠️ Fraud preflight SOFT — triggering signal: missing_exif",
+              "ts": "2026-06-13T19:04:56.915703+00:00",
+              "since_start_ms": 708.8,
+              "meta": {
+                "classification": "SOFT",
+                "triggering_signal": "missing_exif",
+                "phash_match": false,
+                "exif_has_camera_data": false,
+                "rekognition_web_match": false,
+                "photos_fetched": 0,
+                "notes": [
+                  "could not fetch https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png for fraud preflight"
+                ],
+                "sinceStartMs": 708.8
+              }
+            },
+            {
+              "seq": 5,
+              "source": "ml",
+              "phase": "analysis",
+              "code": "ANALYSIS_FANOUT",
+              "level": "info",
+              "message": "🔬 Fanning out 4 parallel analyses (OpenCV, CLIP, Rekognition, Textract) over 1 evidence + 0 reference photo(s)",
+              "ts": "2026-06-13T19:04:56.916082+00:00",
+              "since_start_ms": 709.2,
+              "meta": {
+                "photo_count": 1,
+                "reference_count": 0,
+                "sinceStartMs": 709.2
+              }
+            },
+            {
+              "seq": 6,
+              "source": "ml",
+              "phase": "analysis",
+              "code": "IMAGE_FETCH",
+              "level": "error",
+              "message": "❌ Could not fetch evidence #1 (Textract) (HTTP 403) — S3 returned 403 Forbidden (presigned URL expired or bucket policy).",
+              "ts": "2026-06-13T19:04:58.533629+00:00",
+              "since_start_ms": 2326.8,
+              "duration_ms": 659.5,
+              "meta": {
+                "url": "…1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png",
+                "http_status": 403,
+                "error_type": "HTTPStatusError",
+                "error_detail": "Client error '403 Forbidden' for url 'https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+                "sinceStartMs": 2326.8
+              }
+            },
+            {
+              "seq": 7,
+              "source": "ml",
+              "phase": "analysis",
+              "code": "IMAGE_FETCH",
+              "level": "error",
+              "message": "❌ Could not fetch evidence #1 (Rekognition) (HTTP 403) — S3 returned 403 Forbidden (presigned URL expired or bucket policy).",
+              "ts": "2026-06-13T19:04:58.534594+00:00",
+              "since_start_ms": 2327.7,
+              "duration_ms": 1122.2,
+              "meta": {
+                "url": "…1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png",
+                "http_status": 403,
+                "error_type": "HTTPStatusError",
+                "error_detail": "Client error '403 Forbidden' for url 'https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+                "sinceStartMs": 2327.7
+              }
+            },
+            {
+              "seq": 8,
+              "source": "ml",
+              "phase": "analysis",
+              "code": "ANALYSIS_OPENCV",
+              "level": "warn",
+              "message": "🎨 OpenCV colour comparison skipped (no_reference)",
+              "ts": "2026-06-13T19:04:58.536099+00:00",
+              "since_start_ms": 2329.2,
+              "meta": {
+                "available": false,
+                "reason": "no_reference",
+                "sinceStartMs": 2329.2
+              }
+            },
+            {
+              "seq": 9,
+              "source": "ml",
+              "phase": "analysis",
+              "code": "ANALYSIS_CLIP",
+              "level": "warn",
+              "message": "🧠 CLIP similarity skipped/unavailable (model or image unavailable)",
+              "ts": "2026-06-13T19:04:58.536365+00:00",
+              "since_start_ms": 2329.5,
+              "meta": {
+                "max": 0,
+                "avg": 0,
+                "available": false,
+                "compared": 0,
+                "sinceStartMs": 2329.5
+              }
+            },
+            {
+              "seq": 10,
+              "source": "ml",
+              "phase": "analysis",
+              "code": "ANALYSIS_REKOGNITION",
+              "level": "success",
+              "message": "🏷️ Rekognition: 0 label(s), 0 defect candidate(s). Top: none",
+              "ts": "2026-06-13T19:04:58.536791+00:00",
+              "since_start_ms": 2329.9,
+              "meta": {
+                "label_count": 0,
+                "defect_count": 0,
+                "defect_candidates": [],
+                "sinceStartMs": 2329.9
+              }
+            },
+            {
+              "seq": 11,
+              "source": "ml",
+              "phase": "analysis",
+              "code": "ANALYSIS_TEXTRACT",
+              "level": "success",
+              "message": "🔤 Textract OCR: 0 line(s)",
+              "ts": "2026-06-13T19:04:58.536826+00:00",
+              "since_start_ms": 2329.9,
+              "meta": {
+                "line_count": 0,
+                "sample": [],
+                "sinceStartMs": 2329.9
+              }
+            },
+            {
+              "seq": 12,
+              "source": "ml",
+              "phase": "analysis",
+              "code": "ANALYSIS_COMPLETE",
+              "level": "warn",
+              "message": "🔬 Parallel analysis finished in 1621ms with 2 warning(s): opencv_color_unavailable, clip_similarity_unavailable",
+              "ts": "2026-06-13T19:04:58.536852+00:00",
+              "since_start_ms": 2330,
+              "duration_ms": 1620.7,
+              "meta": {
+                "warnings": [
+                  "opencv_color_unavailable",
+                  "clip_similarity_unavailable"
+                ],
+                "sinceStartMs": 2330
+              }
+            },
+            {
+              "seq": 13,
+              "source": "ml",
+              "phase": "pass2",
+              "code": "PASS2_PROMPT",
+              "level": "info",
+              "message": "📝 Pass 2 prompt composed (4884 chars, category=Electronics). Sending the TEXT analysis summary only (no raw images) to Bedrock.",
+              "ts": "2026-06-13T19:04:58.538811+00:00",
+              "since_start_ms": 2331.9,
+              "meta": {
+                "prompt_chars": 4884,
+                "category": "Electronics",
+                "sinceStartMs": 2331.9
+              }
+            },
+            {
+              "seq": 14,
+              "source": "ml",
+              "phase": "pass2",
+              "code": "BEDROCK_INVOKE",
+              "level": "info",
+              "message": "🤖 Calling Pass 2 grade synthesizer → amazon.nova-pro-v1:0 (primary, nova/converse) with 0 image(s), 4884 prompt chars, max_tokens=2000",
+              "ts": "2026-06-13T19:04:58.538887+00:00",
+              "since_start_ms": 2332,
+              "meta": {
+                "model_id": "amazon.nova-pro-v1:0",
+                "family": "nova/converse",
+                "attempt": 1,
+                "role": "primary",
+                "image_count": 0,
+                "prompt_chars": 4884,
+                "max_tokens": 2000,
+                "temperature": 0,
+                "sinceStartMs": 2332
+              }
+            },
+            {
+              "seq": 15,
+              "source": "ml",
+              "phase": "pass2",
+              "code": "BEDROCK_INVOKE",
+              "level": "error",
+              "message": "❌ Pass 2 grade synthesizer FAILED on amazon.nova-pro-v1:0 (primary): UnrecognizedClientException — An error occurred (UnrecognizedClientException) when calling the Converse operation: The security token included in the request is invalid.. Retrying on fallback anthropic.claude-3-5-sonnet-20241022-v2:0…",
+              "ts": "2026-06-13T19:04:59.851913+00:00",
+              "since_start_ms": 3645,
+              "duration_ms": 1313,
+              "meta": {
+                "model_id": "amazon.nova-pro-v1:0",
+                "role": "primary",
+                "aws_error_code": "UnrecognizedClientException",
+                "will_fallback": true,
+                "error_type": "ClientError",
+                "error_detail": "An error occurred (UnrecognizedClientException) when calling the Converse operation: The security token included in the request is invalid.",
+                "sinceStartMs": 3645
+              }
+            },
+            {
+              "seq": 16,
+              "source": "ml",
+              "phase": "pass2",
+              "code": "BEDROCK_INVOKE",
+              "level": "info",
+              "message": "🤖 Calling Pass 2 grade synthesizer → anthropic.claude-3-5-sonnet-20241022-v2:0 (fallback, anthropic/invoke_model) with 0 image(s), 4884 prompt chars, max_tokens=2000",
+              "ts": "2026-06-13T19:04:59.852540+00:00",
+              "since_start_ms": 3645.7,
+              "meta": {
+                "model_id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+                "family": "anthropic/invoke_model",
+                "attempt": 2,
+                "role": "fallback",
+                "image_count": 0,
+                "prompt_chars": 4884,
+                "max_tokens": 2000,
+                "temperature": 0,
+                "sinceStartMs": 3645.7
+              }
+            },
+            {
+              "seq": 17,
+              "source": "ml",
+              "phase": "pass2",
+              "code": "BEDROCK_INVOKE",
+              "level": "error",
+              "message": "❌ Pass 2 grade synthesizer FAILED on anthropic.claude-3-5-sonnet-20241022-v2:0 (fallback): UnrecognizedClientException — An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.. No models left — pipeline will degrade.",
+              "ts": "2026-06-13T19:05:00.111948+00:00",
+              "since_start_ms": 3905.1,
+              "duration_ms": 259.3,
+              "meta": {
+                "model_id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+                "role": "fallback",
+                "aws_error_code": "UnrecognizedClientException",
+                "will_fallback": false,
+                "error_type": "ClientError",
+                "error_detail": "An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.",
+                "sinceStartMs": 3905.1
+              }
+            },
+            {
+              "seq": 18,
+              "source": "ml",
+              "phase": "pass2",
+              "code": "PASS2_FAILED",
+              "level": "error",
+              "message": "❌ Pass 2 grade synthesis failed — BedrockError: All Bedrock attempts failed: An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.",
+              "ts": "2026-06-13T19:05:00.112554+00:00",
+              "since_start_ms": 3905.7,
+              "meta": {
+                "error_type": "BedrockError",
+                "error_detail": "All Bedrock attempts failed: An error occurred (UnrecognizedClientException) when calling the InvokeModel operation: The security token included in the request is invalid.",
+                "sinceStartMs": 3905.7
+              }
+            }
+          ],
+          "analysis_summary": {
+            "category": "Electronics",
+            "reason": "jfwop",
+            "photo_count": 1,
+            "warnings": [
+              "opencv_color_unavailable",
+              "clip_similarity_unavailable"
+            ],
+            "analyses": {
+              "opencv_color": {
+                "available": false,
+                "reason": "no_reference"
+              },
+              "clip_similarity": {
+                "max": 0,
+                "avg": 0,
+                "available": false,
+                "compared": 0
+              },
+              "rekognition": {
+                "available": true,
+                "labels": [],
+                "defect_candidates": []
+              },
+              "textract": {
+                "available": true,
+                "extracted_text": []
+              }
+            },
+            "fraud": {
+              "phash_match": false,
+              "exif_has_camera_data": false,
+              "rekognition_web_match": false,
+              "classification": "SOFT",
+              "triggering_signal": "missing_exif",
+              "notes": [
+                "could not fetch https://secondlife-marketplace-uploads.s3.ap-south-1.amazonaws.com/uploads/anonymous/6a2da9cd8438db1d8bb456c4/1d03a199fb97a729.png for fraud preflight"
+              ]
+            },
+            "rekognition_version": "aws-rekognition-2016-06-27"
+          }
+        }
+      },
+      "mlServiceUrl": "http://localhost:8000"
+    },
+    "timestamp": "2026-06-13T19:05:00.200Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45764",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "PERSIST_GRADE",
+    "message": "💾 Persisting grade to MongoDB (grade=C, score=50, confidence=low, routing=refurbish)",
+    "level": "info",
+    "phase": "persist",
+    "source": "server",
+    "seq": 12,
+    "metadata": {
+      "grade": "C",
+      "qualityScore": 50,
+      "confidence": "low",
+      "routingHint": "refurbish",
+      "returnClaimVerified": false,
+      "estimatedResalePct": 0.3,
+      "defectCount": 0,
+      "missingEvidence": [
+        "AI grading unavailable — manual review required"
+      ],
+      "usedFallback": true
+    },
+    "timestamp": "2026-06-13T19:05:00.266Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45768",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "LIFECYCLE_EMIT",
+    "message": "⛓️ Lifecycle auto-emit skipped — grade flagged for human review (low_confidence)",
+    "level": "info",
+    "phase": "persist",
+    "source": "server",
+    "seq": 13,
+    "metadata": {
+      "flaggedForReview": true,
+      "reviewReason": "low_confidence",
+      "status": "ok"
+    },
+    "timestamp": "2026-06-13T19:05:00.434Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45774",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "GRADE_ASSIGNED",
+    "message": "🎯 Grade C assigned (50/100, confidence: low). Claim not verified ✗. Routing hint: refurbish. Defects: none",
+    "level": "success",
+    "phase": "complete",
+    "source": "server",
+    "seq": 14,
+    "metadata": {
+      "grade": "C",
+      "qualityScore": 50,
+      "confidence": "low",
+      "routingHint": "refurbish",
+      "returnClaimVerified": false,
+      "estimatedResalePct": 0.3,
+      "defects": [],
+      "missingEvidence": [
+        "AI grading unavailable — manual review required"
+      ],
+      "gradeId": "6a2da9dea7923b649939ac5f"
+    },
+    "timestamp": "2026-06-13T19:05:00.715Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45777",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "STATUS_UPDATE",
+    "message": "📊 Item status changed: GRADING → GRADED",
+    "level": "success",
+    "phase": "complete",
+    "source": "server",
+    "seq": 15,
+    "timestamp": "2026-06-13T19:05:00.770Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb45779",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "REVIEW_FLAGGED",
+    "message": "⚠️ Flagged for human review (low_confidence)",
+    "level": "warn",
+    "phase": "complete",
+    "source": "server",
+    "seq": 16,
+    "metadata": {
+      "reviewReason": "low_confidence"
+    },
+    "timestamp": "2026-06-13T19:05:00.840Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a2da9dc8438db1d8bb4577b",
+    "itemId": "6a2da9cd8438db1d8bb456c4",
+    "step": "FLOW_COMPLETE",
+    "message": "✨ Grading complete. Ready for routing.",
+    "level": "success",
+    "phase": "complete",
+    "source": "server",
+    "seq": 17,
+    "timestamp": "2026-06-13T19:05:00.895Z",
+    "__v": 0
+  }
+]

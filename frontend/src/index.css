@@ -1,0 +1,171 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    /* Amazon-inspired color palette */
+    --amz-navy: #131921;
+    --amz-navy-light: #232f3e;
+    --amz-orange: #FF9900;
+    --amz-orange-light: #FFB347;
+    --amz-orange-dark: #E47911;
+    --amz-teal: #00a8a8;
+    --amz-yellow: #FEBD69;
+    --amz-link: #007185;
+    --amz-link-hover: #C7511F;
+    --amz-green: #007600;
+    --amz-red: #B12704;
+    --amz-star: #FF9900;
+    --amz-bg: #EAEDED;
+    --amz-white: #FFFFFF;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+/* Amazon-style utility classes */
+.amz-nav {
+  background-color: var(--amz-navy);
+}
+
+.amz-nav-secondary {
+  background-color: var(--amz-navy-light);
+}
+
+.amz-btn-primary {
+  background-color: var(--amz-orange);
+  color: #111;
+  font-weight: 600;
+  border: 1px solid var(--amz-orange-dark);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.amz-btn-primary:hover {
+  background-color: var(--amz-orange-light);
+  box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.25);
+}
+
+.amz-btn-secondary {
+  background: linear-gradient(to bottom, #f7f8f8, #e7e9ec);
+  border: 1px solid #adb1b8;
+  color: #111;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+.amz-btn-secondary:hover {
+  background: linear-gradient(to bottom, #e7e9ec, #d7d9dc);
+}
+
+.amz-card {
+  background: white;
+  border: 1px solid #ddd;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.amz-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.amz-star {
+  color: var(--amz-star);
+}
+
+.amz-price {
+  color: var(--amz-red);
+  font-weight: 700;
+}
+
+.amz-link {
+  color: var(--amz-link);
+  text-decoration: none;
+}
+
+.amz-link:hover {
+  color: var(--amz-link-hover);
+  text-decoration: underline;
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

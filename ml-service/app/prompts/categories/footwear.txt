@@ -1,0 +1,13 @@
+CATEGORY OVERLAY — FOOTWEAR
+
+When grading footwear, weight these category-specific factors:
+- Sole wear: tread depth, heel wear, separation of sole from upper. Heavy sole wear
+  is a strong downgrade signal.
+- Upper condition: creasing, scuffs, stains, discoloration, material cracking.
+- Interior: insole wear, odor, heel-cup breakdown.
+- Brand markings and authenticity: logo placement, stitching quality, box/label OCR.
+- Pairing: confirm both shoes present and matching.
+
+Required evidence fields for footwear: top view of both shoes, sole view of both shoes,
+close-up of heel/toe wear, brand marking close-up. If sole wear cannot be assessed,
+add "sole_condition" to missingEvidence.

@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile app/services/trace.py app/services/image_utils.py app/services/bedrock.py app/services/fraud_preflight.py app/services/analysis_orchestrator.py app/services/grade_synthesizer.py app/services/form_generator.py app/routers/grading.py app/models/schemas.py)",
+      "Bash(node --check src/utils/itemLogger.js)",
+      "Bash(node --check src/modules/items/itemLog.model.js)",
+      "Bash(node --check src/modules/grading/grading.service.js)",
+      "Bash(node --check src/modules/items/item.service.js)",
+      "Bash(npx --no-install esbuild src/components/shared/DeveloperLogsSidebar.jsx --loader:.jsx=jsx --jsx=automatic --format=esm)",
+      "Bash(node -e \"const L=require\\('lucide-react'\\); const need=['Terminal','ChevronRight','ChevronLeft','Search','Copy','Download','AlertTriangle','CheckCircle2','XCircle','Loader2','Server','Cpu','BookOpen','Activity','ArrowDownToLine','Check']; const miss=need.filter\\(n=>!L[n]\\); console.log\\(miss.length? 'MISSING: '+miss.join\\(','\\): 'ALL_ICONS_PRESENT'\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(node_modules/.bin/tsc --jsx react-jsx --module esnext --target es2020 --moduleResolution bundler --noEmit --skipLibCheck --allowJs --checkJs false src/components/shared/DeveloperLogsSidebar.jsx)",
+      "Bash(python tests/test_persona_integration.py)",
+      "Bash(python tests/test_grading_properties.py)",
+      "Bash(python -m py_compile app/services/fraud_preflight.py app/routers/grading.py)",
+      "Bash(python -c \"import pydantic_settings; print\\('pydantic_settings INSTALLED', pydantic_settings.__version__\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -m py_compile ml-service/app/services/form_generator.py ml-service/app/routers/grading.py ml-service/app/models/schemas.py ml-service/app/config.py)",
+      "Bash(node --check backend/src/modules/grading/grading.service.js)",
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python -c ' *)"
+    ]
+  }
+}
