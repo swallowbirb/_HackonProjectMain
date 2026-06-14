@@ -515,7 +515,7 @@ const SellerDashboard = () => {
                             )}
                           </td>
                           <td className="p-4 text-xs text-gray-500">{product.category || '—'}</td>
-                          <td className="p-4 text-gray-900 font-medium">₹{product.price.toFixed(2)}</td>
+                          <td className="p-4 text-gray-900 font-medium">${product.price.toFixed(2)}</td>
                           <td className="p-4">
                             <StatusBadge status={product.status} />
                             {product.status === 'flagged' && (
@@ -633,7 +633,7 @@ const SellerDashboard = () => {
                               </Link>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="text-sm font-bold text-gray-900">₹{offer.price.toFixed(2)}</span>
+                              <span className="text-sm font-bold text-gray-900">${offer.price.toFixed(2)}</span>
                             </td>
                             <td className="px-4 py-3">
                               {offer.isBuyBoxWinner ? (

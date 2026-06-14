@@ -249,7 +249,7 @@ export default function BuyerOrdersPage() {
                         </div>
                         <div>
                           <p className="text-gray-500 mb-0.5">TOTAL</p>
-                          <p className="font-medium text-gray-900">₹{order.totalPrice.toFixed(2)}</p>
+                          <p className="font-medium text-gray-900">${order.totalPrice.toFixed(2)}</p>
                         </div>
                       </div>
                       <div className="text-right flex-1 sm:flex-none">

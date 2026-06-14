@@ -163,7 +163,7 @@ const EditProductPage = () => {
 
           <div>
             <label htmlFor="price" className="block text-sm font-medium text-zinc-300 mb-2">
-              Price (₹)
+              Price ($)
             </label>
             <input
               type="number"
