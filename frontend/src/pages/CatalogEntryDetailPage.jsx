@@ -95,7 +95,7 @@ function BuyBoxWidget({ offers, onBuyNow, isBuying }) {
       <div className="p-5 space-y-4">
         {/* Price */}
         <div>
-          <span className="text-3xl font-black text-white">${winner.price.toFixed(2)}</span>
+          <span className="text-3xl font-black text-white">₹{winner.price.toFixed(2)}</span>
         </div>
 
         {/* Seller info */}
@@ -170,7 +170,7 @@ function AllOffersSection({ offers, onBuyNow, isBuying }) {
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="text-sm font-bold text-white">${offer.price.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-white">₹{offer.price.toFixed(2)}</span>
                 </td>
                 <td className="px-4 py-3 text-xs text-zinc-400">{offer.quantity}</td>
                 <td className="px-4 py-3">
@@ -302,7 +302,7 @@ export default function CatalogEntryDetailPage() {
             <div className="flex items-center gap-3">
               <CheckCircle className="w-5 h-5" />
               <span className="font-semibold">Order placed successfully!</span>
-              <span className="text-emerald-100 text-sm">From {orderSuccess.sellerId?.storeName || 'seller'} · ${orderSuccess.price.toFixed(2)}</span>
+              <span className="text-emerald-100 text-sm">From {orderSuccess.sellerId?.storeName || 'seller'} · ₹{orderSuccess.price.toFixed(2)}</span>
             </div>
             <button onClick={() => setOrderSuccess(null)} className="text-emerald-100 hover:text-white text-lg">×</button>
           </motion.div>
@@ -362,10 +362,10 @@ export default function CatalogEntryDetailPage() {
             {offers.length > 0 && (
               <div>
                 <span className="text-3xl font-black">
-                  ${(offers.find(o => o.isBuyBoxWinner) || offers[0])?.price.toFixed(2)}
+                  ₹{(offers.find(o => o.isBuyBoxWinner) || offers[0])?.price.toFixed(2)}
                 </span>
                 {offers.length > 1 && (
-                  <span className="ml-2 text-xs text-zinc-500">{offers.length} offers from ${Math.min(...offers.map(o => o.price)).toFixed(2)}</span>
+                  <span className="ml-2 text-xs text-zinc-500">{offers.length} offers from ₹{Math.min(...offers.map(o => o.price)).toFixed(2)}</span>
                 )}
               </div>
             )}

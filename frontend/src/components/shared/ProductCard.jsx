@@ -9,7 +9,7 @@ export default function ProductCard({ product, index = 0 }) {
   const image = product.images?.[0] || product.officialImages?.[0] || PLACEHOLDER_IMAGE;
   const sellerName = product.sellerId?.storeName ||
     `${product.sellerId?.firstName || ''} ${product.sellerId?.lastName || ''}`.trim() ||
-    'Marketplace Seller';
+    'SecondLife Seller';
 
   return (
     <motion.div
@@ -49,7 +49,7 @@ export default function ProductCard({ product, index = 0 }) {
             <div className="mt-auto pt-1">
               {product.price !== undefined && product.price !== null ? (
                 <span className="text-lg font-bold text-[#B12704]">
-                  ${Number(product.price).toFixed(2)}
+                  ₹{Number(product.price).toFixed(2)}
                 </span>
               ) : (
                 <span className="text-sm font-medium text-gray-500">

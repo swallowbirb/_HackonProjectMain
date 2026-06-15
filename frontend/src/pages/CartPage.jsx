@@ -242,10 +242,10 @@ export default function CartPage() {
                   {/* Price */}
                   <div className="text-right flex-shrink-0">
                     <p className="text-lg font-bold text-[#B12704]">
-                      ${(product.price * item.quantity).toFixed(2)}
+                      ₹{(product.price * item.quantity).toFixed(2)}
                     </p>
                     {item.quantity > 1 && (
-                      <p className="text-xs text-gray-500">${product.price.toFixed(2)} each</p>
+                      <p className="text-xs text-gray-500">₹{product.price.toFixed(2)} each</p>
                     )}
                   </div>
                 </motion.div>
@@ -262,7 +262,7 @@ export default function CartPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Items ({itemCount}):</span>
-                <span className="font-medium">${subtotal.toFixed(2)}</span>
+                <span className="font-medium">₹{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Shipping:</span>
@@ -274,7 +274,7 @@ export default function CartPage() {
 
             <div className="flex justify-between text-lg font-bold text-[#B12704]">
               <span>Order Total:</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>₹{subtotal.toFixed(2)}</span>
             </div>
 
             {role === 'buyer' ? (

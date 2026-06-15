@@ -142,7 +142,7 @@ export default function NewOfferPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-left">
             <div className="flex justify-between text-sm mb-2">
               <span className="text-zinc-500">Your Price</span>
-              <span className="text-white font-bold">${parseFloat(offerForm.price).toFixed(2)}</span>
+              <span className="text-white font-bold">₹{parseFloat(offerForm.price).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-zinc-500">Brand</span>
@@ -368,7 +368,7 @@ export default function NewOfferPage() {
                           <DollarSign className="w-3.5 h-3.5 text-[#FF9900]" /> Your Price *
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 text-sm font-medium">$</span>
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 text-sm font-medium">₹</span>
                           <input
                             type="number"
                             value={offerForm.price}

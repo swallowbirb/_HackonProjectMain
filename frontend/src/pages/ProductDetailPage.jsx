@@ -243,7 +243,7 @@ export default function ProductDetailPage() {
             {/* Price */}
             <div>
               <span className="text-sm text-gray-500">Price: </span>
-              <span className="text-3xl font-bold text-[#B12704]">${product.price.toFixed(2)}</span>
+              <span className="text-3xl font-bold text-[#B12704]">₹{product.price.toFixed(2)}</span>
             </div>
 
             {/* Description */}
@@ -274,7 +274,7 @@ export default function ProductDetailPage() {
           {/* Buy box */}
           <div className="bg-white border border-gray-200 rounded-md p-5 space-y-4 self-start sticky top-20">
             <div>
-              <span className="text-2xl font-bold text-[#B12704]">${product.price.toFixed(2)}</span>
+              <span className="text-2xl font-bold text-[#B12704]">₹{product.price.toFixed(2)}</span>
             </div>
             
             <div className="text-sm text-[#007600] font-medium flex items-center gap-1">

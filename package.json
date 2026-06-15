@@ -1,8 +1,8 @@
 {
-  "name": "second-life-commerce",
+  "name": "secondlife",
   "version": "1.0.0",
   "private": true,
-  "description": "AI-Powered Marketplace Security — root dev orchestration (Phase 3.5)",
+  "description": "SecondLife — AI-Powered Reverse Commerce & Fraud Defence",
   "scripts": {
     "dev": "concurrently -n backend,frontend,ml -c blue,green,magenta \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:ml\"",
     "dev:web": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",

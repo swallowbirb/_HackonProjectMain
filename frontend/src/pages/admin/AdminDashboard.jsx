@@ -310,7 +310,7 @@ const ProductsTab = () => {
                         <p className="text-gray-700 text-xs">{product.sellerId?.firstName} {product.sellerId?.lastName}</p>
                         <p className="text-zinc-600 text-xs truncate max-w-[120px]">{product.sellerId?.email}</p>
                       </td>
-                      <td className="px-5 py-4 text-gray-700 font-medium">${product.price?.toFixed(2)}</td>
+                      <td className="px-5 py-4 text-gray-700 font-medium">₹{product.price?.toFixed(2)}</td>
                       <td className="px-5 py-4"><StatusBadge status={product.status} /></td>
                       <td className="px-5 py-4"><ModerationFlags banned={product.banned} suspended={product.suspended} /></td>
                       <td className="px-5 py-4">
@@ -572,7 +572,7 @@ const SellersTab = () => {
                                   <div key={p._id} className="flex items-center gap-3 text-xs text-gray-400">
                                     <span className="text-gray-700 font-medium truncate max-w-[200px]">{p.title}</span>
                                     <span className="text-zinc-600">{p.category}</span>
-                                    <span className="text-gray-400">${p.price?.toFixed(2)}</span>
+                                    <span className="text-gray-400">₹{p.price?.toFixed(2)}</span>
                                     <StatusBadge status={p.status} />
                                   </div>
                                 ))}

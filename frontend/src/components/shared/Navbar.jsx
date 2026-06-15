@@ -58,9 +58,8 @@ export default function Navbar() {
           <Link to="/" className="flex-shrink-0 mr-1">
             <div className="flex items-center gap-1 hover:outline hover:outline-white hover:outline-1 rounded px-1 py-1 transition-all">
               <div className="text-white font-bold text-xl tracking-tight leading-none">
-                market<span className="text-[#FF9900]">place</span>
+                Second<span className="text-[#FF9900]">Life</span>
               </div>
-              <div className="text-[#FF9900] text-[10px] font-bold mt-1">.security</div>
             </div>
           </Link>
 
