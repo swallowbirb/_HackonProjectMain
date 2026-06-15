@@ -8,8 +8,8 @@ httpx==0.27.2
 Pillow==10.4.0
 numpy==1.26.4
 imagehash==4.3.1
-pydantic==2.9.0
-pydantic-settings==2.5.0
+pydantic==2.11.0
+pydantic-settings==2.7.0
 
 # --- REMOVED in v2.34 (Phase 2 Re-Edition 3) ---
 # OpenCV and CLIP (torch/transformers) were removed from the grading pipeline.
