@@ -1,7 +1,7 @@
 # Second-Life Marketplace — Unified Technical Documentation
 
 > **Status:** Living document — consolidates Phase 0 through Phase 7.5 plus the
-> Developer Logs cross-cutting feature.
+> Developer Logs cross-cutting feature. Last verified against code: June 2026.
 > **Audience:** Engineers, solutions architects, and technical reviewers.
 > **Purpose:** Single source of truth for the end-to-end system: what each subsystem
 > does, how data flows, how the phases interact, and the overall architecture.
@@ -26,7 +26,7 @@ and fraud-defence layer**. It does three things the base marketplace cannot:
 
 The whole system is built to run on modest infrastructure: **MongoDB Atlas M0 + Node/Express +
 a Python FastAPI ML service**, with **Google Gemini** for multimodal reasoning and **AWS**
-(S3, Rekognition, Textract, optionally Bedrock/KMS) for supporting services.
+(S3, Rekognition, Textract) for supporting services.
 
 ### 1.1 Subsystem Map
 
@@ -36,10 +36,11 @@ a Python FastAPI ML service**, with **Google Gemini** for multimodal reasoning a
 | P1 | Dual Intake | `returns/`, `secondhand/`, `items/`, `lifecycle/` | Two front doors → one `Item` + append-only event log |
 | P2 | AI Grading | `grading/`, `prompts/`, ml-service | Dynamic claim-specific form → per-field inspection → grade |
 | P3 | Trust & Fraud | `trust/` | Per-user trust profile, fraud clamps, P1/P4 seam |
-| P4–P6 | Routing / Demand / Resale | `routing/`, `demand/`, `resale/`, `healthCard/`, `sustainability/` | Disposition brain, geo-demand, storefront |
+| P4–P6 | Routing / Demand / Resale | `routing/`, `demand/`, `resale/`, `sustainability/` | Disposition brain, geo-demand, storefront |
 | P7 | Prevention Intelligence | `prevention/`, `reviews/` | Pre-purchase return prevention (closed loop) |
 | P7.5 | Festive Defense | `festive/`, hooks into `orders/`, `returns/` | Calendar-aware policy levers |
 | X | Developer Logs | `items/` logs endpoint, `utils/itemLogger` | Real-time pipeline observability |
+| Base | Pre-existing marketplace | `users/`, `products/`, `orders/`, `brands/`, `brandCatalog/`, `offers/`, `reviews/`, `admin/`, `webhooks/` | Original e-commerce layer (untouched by reverse-commerce phases) |
 
 ---
 
@@ -54,7 +55,6 @@ a Python FastAPI ML service**, with **Google Gemini** for multimodal reasoning a
 | Vision | AWS Rekognition, Textract, OpenCV, perceptual hashing | Defect/label/OCR + fraud preflight |
 | Object storage | AWS S3 (`ap-south-1`) | Browser direct upload via presigned URLs |
 | Auth | Clerk | Middleware-based; `req.user` with role |
-| Signing (optional) | AWS KMS / Ed25519 + `qrcode` | Health Card hash chain (stretch) |
 | Frontend | React (Vite) + Tailwind/shadcn + framer-motion + axios | |
 | Map UI | react-leaflet + OpenStreetMap | Admin Demand Map (Chhattisgarh) |
 | Tests | Jest (backend), Pytest (ml-service) | |
@@ -69,7 +69,7 @@ shared document without renaming or removing anything upstream.
 
 | Contract file | Defines | Primary consumer |
 |---|---|---|
-| `lifecycleEvent.contract.js` | Event types, hash-chain shape | P1, P5 |
+| `lifecycleEvent.contract.js` | Event types, append-only event shape | P1 |
 | `grade.contract.js` | Grade JSON (grade, qualityScore, defects, estimatedResalePct, routingHint) | P2 → P4 |
 | `trustProfile.contract.js` | `TRUST_TIERS`, `TIER_THRESHOLDS`, `TRUST_SIGNALS`, `RETURN_RATE_THRESHOLDS` | P3 (frozen) |
 | `routingDecision.contract.js` | chosenPath, rankedAlternatives, hard gates | P4 |
@@ -91,9 +91,10 @@ Item {
   originalOrderId, originalProductId, category, reasonCode, reasonText
   evidencePhotos[], clarifyingPhotos[]
   evidenceForm { status, schema, schemaVersion, provider }   // P2
-  evidenceFieldImages { fieldId: [urls] }                    // P2
+  evidenceFieldImages { fieldId: [urls] }                    // P2 photo fields
+  videoEvidence { fieldId: { liveness, selectedFrameUrls } } // P2 video fields
   status: <state machine>
-  gradeId | routingDecisionId | healthCardId | listingId     // forward refs
+  gradeId | routingDecisionId | listingId                    // forward refs
   trustTierAtSubmission                                       // P3 snapshot
   ownerNotes                                                  // P5
 }
@@ -117,7 +118,7 @@ INITIATED → AWAITING_EVIDENCE → EVIDENCE_PENDING → GRADING → GRADED
 | `→ DONATED \| LIQUIDATED` | P4/P8 |
 
 Every transition appends a `LifecycleEvent` (append-only, monotonically increasing `sequence`
-per item; `previousHash`/`hash` reserved for the Health Card chain in P5).
+per item).
 
 ---
 
@@ -127,16 +128,15 @@ per item; `previousHash`/`hash` reserved for the Health Card chain in P5).
 lock data contracts.
 
 ### 4.1 What it delivers
-- **AWS:** IAM user, S3 bucket (`ap-south-1`) with CORS for browser uploads, Bedrock model
-  access (later superseded by Gemini for Pass 1), optional KMS signing key.
-- **Env config:** unified `.env` covering Mongo, Clerk, AWS, S3, Bedrock, KMS, `ML_SERVICE_URL`.
+- **AWS:** IAM user, S3 bucket (`ap-south-1`) with CORS for browser uploads.
+- **Env config:** unified `.env` covering Mongo, Clerk, AWS, S3, Gemini, `ML_SERVICE_URL`.
 - **Atlas indexes** (created by `backend/src/config/createIndexes.js`):
 
 | Collection | Index | Purpose |
 |---|---|---|
 | `wants`/`demand` | `{ location: "2dsphere" }` | Geo demand matching (P6) |
 | `items` | `{ status: 1, createdAt: -1 }`, `{ userId: 1, status: 1 }` | State queries, trust lookups |
-| `lifecycleEvents` | `{ itemId: 1, sequence: 1 }` unique | Hash-chain ordering |
+| `lifecycleEvents` | `{ itemId: 1, sequence: 1 }` unique | Event ordering |
 | `trustProfiles` | `{ userId: 1 }` unique | Trust score |
 | `listings` | `{ conditionLane: 1, category: 1 }` | Marketplace browse |
 
@@ -203,9 +203,14 @@ Phase 2 evolved across two re-editions. The **current truth** is the union of:
 STEP A  Claim: reason + optional 1–2 clarifying photos → Item INITIATED
 STEP B  Pass 1 (Gemini): generate a product- & claim-specific Form_Schema
         → Item AWAITING_EVIDENCE (generic fields instant → AI fields swap in)
-STEP C  Per-field capture: user uploads N photos per field (S3 + phash/EXIF preflight only)
-        → clicks "Verify Field" → ONE multimodal Gemini call judges the whole photo set
-        → writes ONE field-level Evidence_Fragment
+        → fields carry capture_mode: photo | video | text
+STEP C  Per-field capture:
+        • photo fields  — user uploads N photos per field (S3 + phash/EXIF preflight)
+        • video fields  — user uploads video; server extracts frames (OpenCV, 1.5 fps),
+                          runs phash liveness/continuity check, selects up to 6 diverse
+                          frames — all CPU-only, no LLM
+        → clicks "Verify Field" → ONE multimodal Gemini call judges the whole
+          photo/frame set → writes ONE field-level Evidence_Fragment
 STEP D  Submit: required-field gate → Pass 2 text-only synthesis over fragments → Grade JSON
         → Item GRADED, GRADED lifecycle event emitted
 ```
@@ -224,10 +229,20 @@ STEP D  Submit: required-field gate → Pass 2 text-only synthesis over fragment
 - **Per-field batched inspection** beats per-photo: a "both side views" field is judged once
   *as a set*, so the first-of-two photo is no longer wrongly rejected. Cost ≈ 1 call/field + 1
   synthesis, vs the old 1 call/photo.
+- **Video evidence fields:** Pass 1 assigns `capture_mode: "video"` to fields where continuous
+  motion better demonstrates the defect (hinges, screens, functional tests). The video path in
+  `ml-service/app/services/video_frame_selector.py` runs entirely CPU-side before the LLM call:
+  OpenCV samples at 1.5 fps, `phash_continuity()` checks for splice/discontinuity (liveness),
+  and `phash_diversify()` prunes to ≤6 diverse, quality-passing JPEG frames. Those frames enter
+  the same `inspect-field` + Pass 2 path as photos — same shape, same LLM budget. The
+  `liveness` signal is stored on `Item.videoEvidence[fieldId]`. Server-side extraction degrades
+  gracefully to `[]` when `opencv-python-headless` is absent (client canvas path takes over).
 - **Form persisted on the `Item`** (`evidenceForm` sub-doc) — survives restart; the in-memory
   `_formState` map is only a cache.
-- **Fraud preflight** runs per photo at upload (perceptual-hash match vs catalog + EXIF
+- **Fraud preflight** runs per photo/frame at upload (perceptual-hash match vs catalog + EXIF
   camera-data check). A phash match HARD-rejects with a stock-photo-theft message — no LLM call.
+  The same `fraud_preflight.phash_match` + `classify` functions are reused for video frames,
+  so no new signal types are introduced.
 - **Field→image mapping** is carried into the `Analysis_Summary` so Pass 2 can say
   "sole_photo shows heavy wear," and defect `location` carries the field name.
 - **Cache key** = `hash(productId + normalized_reason)`, falling back to `category` when there
@@ -351,12 +366,42 @@ Shared price formula:
 - Seller dashboard tab: demand count, suggested vs current price, inline edit, publish/unlist.
 - Buyer purchase reuses the existing order flow.
 
-### 8.6 Optional/stretch
-- **Health Card** (`healthCard/`): SHA-256 hash chain over lifecycle events + QR to a public
-  verify page. KMS/Ed25519 signing = TODO.
-- **Sustainability** (`sustainability/`): CO₂/water savings counters per category.
+### 8.6 Sustainability module (`sustainability/`) — scaffolded
 
-### 8.7 Logistics edge cases handled by rule (selected)
+**Status: scaffolded, not implemented.** The module is registered in `server.js` at
+`/api/sustainability` and all five files exist (`model`, `service`, `controller`, `routes`,
+`validation`), but every service function body is a TODO stub returning `501`.
+
+**What is designed (pending implementation):**
+
+- **`SustainabilityImpact` document** — one record per disposed item:
+  `itemId`, `userId`, `category`, `co2SavedKg`, `waterSavedLiters`, `greenCreditsEarned`,
+  `eventType` (`sale` | `donation` | `repair` | `resell`), `timestamps`.
+
+- **Category factor table** (sourced from WRAP/INTEXTER data, defined in `sustainability.service.js`):
+
+  | Category | CO₂ saved (kg) | Water saved (L) |
+  |---|---|---|
+  | clothing | 20.0 | 2 700 |
+  | electronics | 30.0 | 500 |
+  | books | 2.5 | 50 |
+  | footwear | 14.0 | 8 000 |
+  | furniture | 40.0 | 200 |
+
+- **Planned functions:**
+  - `computeImpact(itemId, category, userId, eventType)` — look up factor table →
+    calculate savings → award green credits (1 credit per kg CO₂ saved, rounded) →
+    persist `SustainabilityImpact`.
+  - `getUserImpactSummary(userId)` — aggregate totals for a user profile/dashboard widget.
+  - `getPlatformImpactSummary()` — aggregate totals across all users (platform leaderboard).
+
+- **Exposed routes:** `GET /api/sustainability/platform`, `GET /api/sustainability/user/:userId`.
+  Both currently return `501 Not Implemented`.
+
+- **Integration point (not yet wired):** `routing.service.js` should call `computeImpact`
+  after a routing decision resolves to `resell`, `donate`, or any non-landfill path.
+
+### 8.8 Logistics edge cases handled by rule (selected)
 Reverse cost > item value → donate/liquidate locally; double-shipping → best-warehouse score;
 photo-gaming → low-trust physical re-grade before refund; double peer-claim → first claim
 reserves with TTL; stale wants → `expiresAt`/`active`; item ageing → category-scaled hold window
@@ -604,7 +649,9 @@ flowchart LR
 
 | Area | Status | Note |
 |---|---|---|
-| Health Card KMS / Ed25519 signing | Deferred | Hash chain built; signing is stretch |
+| Sustainability `computeImpact` | TODO | Factor table defined in service; function bodies are stubs returning 501 |
+| Sustainability `getUserImpactSummary` / `getPlatformImpactSummary` | TODO | Endpoints registered, return 501 |
+| Sustainability wired into routing | TODO | `routing.service.js` should call `computeImpact` post-routing-decision |
 | Real courier / pickup batching | Simulated | State changes only, "brain not trucks" |
 | Warehouse capacity enforcement | Deferred | Capacity is a seeded field, not enforced |
 | Buyer-side peer-claim fraud enforcement | Stubbed | Rule present, full enforcement TODO |
