@@ -2,8 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const PromptConfig = require('./prompt.model');
 
-// Templates read/write directly to the ML service .txt files — the file IS the
-// source of truth. No DB layer for templates; edits in the console are instant.
+// The DB (PromptConfig) is the source of truth for ALL prompt scopes (base, category,
+// template) so admin edits persist across redeploys / ephemeral filesystems. The ML
+// service `.txt` files are kept as a best-effort mirror (handy for local dev & git
+// diffs) and as the fallback seed when no DB row exists yet.
 const ML_PROMPTS_DIR = path.resolve(__dirname, '../../../../ml-service/app/prompts');
 
 function _readPromptFile(filename) {
@@ -232,34 +234,46 @@ const getBasePrompt = async () => {
 };
 
 /**
- * Get the category overlay for a raw category — reads directly from the bundle's
- * `.txt` file (the source of truth), falling back to the hardcoded default only if
- * the file is unreadable. Returns null for an unsupported category.
+ * Get the category overlay for a raw category — DB row wins (source of truth),
+ * falling back to the bundle's `.txt` file and then the hardcoded default. Returns
+ * null for an unsupported category.
  */
 const getCategoryPrompt = async (category) => {
-  const key = resolveCategoryKey(category);
+  let key = resolveCategoryKey(category);
+  if (!key) {
+    // A DB-only admin category whose `.txt` file was never written / was lost on an
+    // ephemeral filesystem still resolves by its slug.
+    const slug = slugifyCategoryKey(category);
+    if (slug && (await PromptConfig.exists({ scope: 'category', key: slug }))) key = slug;
+  }
   if (!key) return null;
+  const row = await PromptConfig.findOne({ scope: 'category', key, enabled: true }).lean();
+  if (row && row.content) return row.content;
   return _readPromptFile(_categoryFile(key)) ?? DEFAULT_CATEGORY[key] ?? null;
 };
 
 /**
- * Get the effective content for a task template — reads directly from the .txt file.
- * Returns null for an unknown template key.
+ * Get the effective content for a task template — DB row wins, then the `.txt` file,
+ * then the hardcoded default. Returns null for an unknown template key.
  */
 const getTemplatePrompt = async (key) => {
   const normKey = String(key || '').trim().toLowerCase();
   if (!SUPPORTED_TEMPLATES.includes(normKey)) return null;
+  const row = await PromptConfig.findOne({ scope: 'template', key: normKey, enabled: true }).lean();
+  if (row && row.content) return row.content;
   return _readPromptFile(TEMPLATE_FILES[normKey]) ?? DEFAULT_TEMPLATE[normKey] ?? null;
 };
 
 /**
- * Get the current template content to thread as an override to the ML service.
- * Since the file IS the source of truth, always return the file content so the
- * ML service uses the admin-edited version rather than its own bundled copy.
+ * Get the template content to thread as an override to the ML service. The DB row is
+ * the source of truth (persists across deploys); the bundled `.txt` file is the
+ * fallback when no admin edit exists yet.
  */
 const getTemplateOverride = async (key) => {
   const normKey = String(key || '').trim().toLowerCase();
   if (!SUPPORTED_TEMPLATES.includes(normKey)) return null;
+  const row = await PromptConfig.findOne({ scope: 'template', key: normKey, enabled: true }).lean();
+  if (row && row.content) return row.content;
   return _readPromptFile(TEMPLATE_FILES[normKey]) ?? null;
 };
 
@@ -282,25 +296,31 @@ const listPrompts = async () => {
       scope: 'base', key: 'base', label: 'Base Grading Prompt', enabled: true,
     })
   );
-  // Categories — discovered dynamically from the `.txt` overlay files (built-ins +
-  // admin-added). DB rows are ignored for categories (the file is the source of truth,
-  // same as templates below). `builtin` marks the four shipped bundles so the console
-  // can protect them from deletion.
-  for (const key of listCategoryKeys()) {
-    const fileContent = _readPromptFile(_categoryFile(key)) ?? DEFAULT_CATEGORY[key] ?? '';
+  // Categories — built-in bundles + any `.txt` files on disk + any category that only
+  // exists as a DB row (e.g. created in prod where the file write didn't persist). DB
+  // row content wins; the `.txt` file / hardcoded default is the fallback. `builtin`
+  // marks the four shipped bundles so the console can protect them from deletion.
+  const dbCategoryKeys = rows.filter((r) => r.scope === 'category').map((r) => r.key);
+  const categoryKeys = [...new Set([...listCategoryKeys(), ...dbCategoryKeys])].sort();
+  for (const key of categoryKeys) {
+    const dbRow = byKey.get(`category:${key}`);
+    const content = (dbRow && dbRow.content) || _readPromptFile(_categoryFile(key)) || DEFAULT_CATEGORY[key] || '';
     result.push({
       scope: 'category', key,
       label: _categoryLabel(key),
-      content: fileContent, enabled: true, version: 0, seeded: false,
+      content, enabled: true,
+      version: dbRow ? dbRow.version : 0, seeded: !!(dbRow && dbRow.content),
       builtin: SUPPORTED_BUNDLES.includes(key),
     });
   }
-  // Templates — always read from the .txt file; DB rows are ignored for templates.
+  // Templates — DB row content wins; the `.txt` file / hardcoded default is the fallback.
   for (const key of SUPPORTED_TEMPLATES) {
-    const fileContent = _readPromptFile(TEMPLATE_FILES[key]) ?? DEFAULT_TEMPLATE[key] ?? '';
+    const dbRow = byKey.get(`template:${key}`);
+    const content = (dbRow && dbRow.content) || _readPromptFile(TEMPLATE_FILES[key]) || DEFAULT_TEMPLATE[key] || '';
     result.push({
       scope: 'template', key, label: TEMPLATE_LABELS[key] || key,
-      content: fileContent, enabled: true, version: 0, seeded: false,
+      content, enabled: true,
+      version: dbRow ? dbRow.version : 0, seeded: !!(dbRow && dbRow.content),
     });
   }
   return result;
@@ -336,17 +356,27 @@ const upsertPrompt = async ({ scope, key, content, label, enabled, userId }) => 
     throw e;
   }
 
-  // Templates and categories write directly to their .txt file — no DB involved.
-  if (scope === 'template') {
-    _writePromptFile(TEMPLATE_FILES[normKey], content);
-    return { scope, key: normKey, content, label: TEMPLATE_LABELS[normKey], enabled: true, version: 0 };
-  }
-  if (scope === 'category') {
-    _writePromptFile(_categoryFile(normKey), content);
-    return {
-      scope, key: normKey, content, label: _categoryLabel(normKey),
-      enabled: true, version: 0, builtin: SUPPORTED_BUNDLES.includes(normKey),
+  // Templates and categories persist to the DB (source of truth, survives redeploys)
+  // and mirror to their `.txt` file best-effort (local dev / git diffs).
+  if (scope === 'template' || scope === 'category') {
+    const filename = scope === 'template' ? TEMPLATE_FILES[normKey] : _categoryFile(normKey);
+    try {
+      _writePromptFile(filename, content);
+    } catch (err) {
+      console.warn(`[prompts] file mirror failed for ${filename} (DB save still applied): ${err.message}`);
+    }
+    const defaultLabel = scope === 'template' ? TEMPLATE_LABELS[normKey] : _categoryLabel(normKey);
+    const update = {
+      $set: { content, label: label !== undefined ? label : defaultLabel, updatedBy: userId || null },
+      $inc: { version: 1 },
+      $setOnInsert: { scope, key: normKey, enabled: true },
     };
+    const saved = await PromptConfig.findOneAndUpdate({ scope, key: normKey }, update, {
+      new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true,
+    });
+    const out = saved.toObject ? saved.toObject() : saved;
+    if (scope === 'category') out.builtin = SUPPORTED_BUNDLES.includes(normKey);
+    return out;
   }
 
   const update = {
@@ -368,7 +398,8 @@ const resetPrompt = async ({ scope, key, userId }) => {
     ? slugifyCategoryKey(key)
     : String(key || '').trim().toLowerCase();
 
-  // Templates and categories are file-backed — reset == restore the committed file.
+  // Reset == drop the DB override and restore the committed `.txt` file, so the
+  // shipped/committed content becomes effective again.
   if (scope === 'template' || scope === 'category') {
     const { execSync } = require('child_process');
     const filename = scope === 'template' ? TEMPLATE_FILES[normKey] : _categoryFile(normKey);
@@ -378,6 +409,8 @@ const resetPrompt = async ({ scope, key, userId }) => {
     } catch {
       // git not available or file not tracked — no-op, keep current content
     }
+    // Remove the DB override so getters fall back to the committed file / default.
+    try { await PromptConfig.deleteOne({ scope, key: normKey }); } catch { /* best-effort */ }
     const fallback = scope === 'template' ? _TEMPLATE_FALLBACK[normKey] : DEFAULT_CATEGORY[normKey];
     const content = _readPromptFile(filename) ?? fallback ?? '';
     const label = scope === 'template' ? TEMPLATE_LABELS[normKey] : _categoryLabel(normKey);
@@ -404,13 +437,17 @@ const deleteCategory = async ({ key }) => {
     e.statusCode = 400;
     throw e;
   }
-  if (!_categoryFileExists(normKey)) {
+  const fileExists = _categoryFileExists(normKey);
+  const dbExists = await PromptConfig.exists({ scope: 'category', key: normKey });
+  if (!fileExists && !dbExists) {
     const e = new Error(`Category '${normKey}' does not exist.`);
     e.statusCode = 404;
     throw e;
   }
-  fs.unlinkSync(path.join(ML_PROMPTS_DIR, _categoryFile(normKey)));
-  // Drop any stale DB override row so it can't shadow a future same-named category.
+  if (fileExists) {
+    try { fs.unlinkSync(path.join(ML_PROMPTS_DIR, _categoryFile(normKey))); } catch { /* best-effort */ }
+  }
+  // Drop the DB row (source of truth) so it can't shadow a future same-named category.
   try { await PromptConfig.deleteOne({ scope: 'category', key: normKey }); } catch { /* best-effort */ }
   return { scope: 'category', key: normKey, deleted: true };
 };

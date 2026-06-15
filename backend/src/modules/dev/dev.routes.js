@@ -8,5 +8,6 @@ router.get('/save', devController.saveData);
 router.delete('/reset-returns', devController.resetReturnData);
 router.get('/gemini-ping', devController.geminiPing);
 router.post('/manual-grade', devController.manualGrade);
+router.post('/regen-form', devController.regenForm);
 
 module.exports = router;

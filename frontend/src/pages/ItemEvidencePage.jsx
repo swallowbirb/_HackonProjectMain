@@ -10,7 +10,7 @@ import {
 } from '../services/item.service';
 import { submitReturnEvidence } from '../services/return.service';
 import { submitSecondhandEvidence } from '../services/secondhand.service';
-import { getMontageMode } from '../services/dev.service';
+import { getMontageMode, getBustCacheMode, regenForm } from '../services/dev.service';
 import DeveloperLogsSidebar from '../components/shared/DeveloperLogsSidebar';
 import EvidenceStepper from '../components/shared/EvidenceStepper';
 import TrustTierBadge from '../components/shared/TrustTierBadge';
@@ -57,6 +57,12 @@ export default function ItemEvidencePage() {
   const videoInputs = useRef({});
   const videoRecorderRefs = useRef({});
 
+  // DEV cache-bypass (DevTools "Use Cache" OFF): force ONE fresh Pass-1
+  // generation on mount so a stale cached/persisted form is never shown.
+  // While this is in flight, the poll below holds at "pending" so it can't
+  // grab the old persisted schema first.
+  const awaitingRegenRef = useRef(getBustCacheMode());
+
   // --- Load trust tier once ---
   useEffect(() => {
     if (!itemId) return;
@@ -65,11 +71,24 @@ export default function ItemEvidencePage() {
       .catch(() => {});
   }, [itemId]);
 
+  // --- DEV: when cache is disabled, force a fresh form before polling ---
+  useEffect(() => {
+    if (!itemId || !awaitingRegenRef.current) return;
+    setReadiness('pending');
+    setSource('regenerating');
+    // regenForm resolves only after the backend finishes regeneration (the dev
+    // endpoint awaits startFormGeneration), so by the time the ref flips false
+    // the persisted form is already the fresh one and the poll picks it up.
+    regenForm(itemId).finally(() => { awaitingRegenRef.current = false; });
+  }, [itemId]);
+
   // --- Poll the dynamic form until ready/fallback ---
   useEffect(() => {
     if (!itemId) return undefined;
     let active = true;
     const poll = async () => {
+      // Don't accept the (stale) persisted form while a forced regen is running.
+      if (awaitingRegenRef.current) return;
       try {
         const res = await getEvidenceForm(itemId);
         if (!active || !res.success) return;
@@ -526,7 +545,7 @@ function PhotoField({ field, fieldState, verifying, fileInputRef, videoInputRef,
   const hasReadyPhoto = photos.some((p) => p.url && p.status === 'ready');
   const verified = fieldStatus === 'verified';
   const rejected = fieldStatus === 'rejected';
-  const isVideo = field.capture_mode === 'video';
+  const isVideo = field.capture_mode === 'video' || field.type === 'video';
 
   const noteByUrl = new Map();
   for (const n of fieldState.perPhoto || []) {

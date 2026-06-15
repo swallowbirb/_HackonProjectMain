@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Shield, Package, Users, AlertTriangle, CheckCircle, Clock,
   XCircle, Ban, Pause, Play, Search, ChevronLeft, ChevronRight,
   RefreshCw, TrendingUp, Eye, ChevronDown, ChevronUp, Sparkles, Zap, ZapOff,
-  Maximize2, X, Plus, Trash2
+  Maximize2, X, Plus, Trash2, Edit
 } from 'lucide-react';
 import {
   getStats,
@@ -212,6 +213,7 @@ const Pagination = ({ page, totalPages, onPage }) => {
 // ─── Products Tab ─────────────────────────────────────────────────────────────
 
 const ProductsTab = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({});
@@ -315,6 +317,13 @@ const ProductsTab = () => {
                       <td className="px-5 py-4"><ModerationFlags banned={product.banned} suspended={product.suspended} /></td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => navigate(`/admin/edit-product/${product._id}`)}
+                            className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 transition-colors"
+                            title="Edit Product"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
                           {product.status !== 'approved' && (
                             <button
                               onClick={() => handleAction('status', product._id, 'approved', `Approve "${product.title}"?`)}

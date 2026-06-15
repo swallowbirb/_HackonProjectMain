@@ -426,6 +426,46 @@ const manualGrade = async (req, res, next) => {
   }
 };
 
+/**
+ * DEV ONLY — Force-regenerate the evidence form for an item, bypassing the
+ * ML-service TTL cache so a fresh Gemini Pass-1 call always fires.
+ *
+ * Body: { itemId }
+ */
+const regenForm = async (req, res, next) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, message: 'Not allowed in production' });
+    }
+
+    const mongoose = require('mongoose');
+    const gradingService = require('../grading/grading.service');
+
+    const { itemId } = req.body || {};
+    if (!itemId || !mongoose.isValidObjectId(itemId)) {
+      return res.status(400).json({ success: false, message: 'A valid itemId is required' });
+    }
+
+    const item = await Item.findById(itemId)
+      .select('originalProductId category reasonText description intakePath')
+      .lean();
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+
+    await gradingService.startFormGeneration(itemId, {
+      productId: item.originalProductId ? String(item.originalProductId) : undefined,
+      reason: item.reasonText || item.description || 'Selling used item',
+      category: item.category,
+      bustCache: true,
+    });
+
+    return res.status(200).json({ success: true, message: 'Form regeneration started (cache bypassed).' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   eraseData,
   populateData,
@@ -433,4 +473,5 @@ module.exports = {
   resetReturnData,
   geminiPing,
   manualGrade,
+  regenForm,
 };

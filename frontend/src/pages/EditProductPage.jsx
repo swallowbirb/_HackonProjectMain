@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getProductById, updateProduct } from '../services/product.service';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
@@ -8,6 +8,9 @@ import ProductImageAngleEditor from '../components/shared/ProductImageAngleEdito
 const EditProductPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminEdit = location.pathname.startsWith('/admin');
+  const returnPath = isAdminEdit ? '/admin/dashboard' : '/seller/dashboard';
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -90,7 +93,7 @@ const EditProductPage = () => {
       });
 
       if (response.success) {
-        navigate('/seller/dashboard');
+        navigate(returnPath);
       }
     } catch (err) {
       console.error(err);
@@ -123,11 +126,11 @@ const EditProductPage = () => {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[150%] h-[150px] bg-blue-500/10 blur-[100px] rounded-[100%] pointer-events-none" />
 
         <button 
-          onClick={() => navigate('/seller/dashboard')}
+          onClick={() => navigate(returnPath)}
           className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors mb-8 relative z-10"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
+          {isAdminEdit ? 'Back to Admin' : 'Back to Dashboard'}
         </button>
 
         <div className="mb-10 relative z-10">

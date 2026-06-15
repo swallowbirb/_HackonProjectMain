@@ -1,50 +1,30 @@
-PASS 1 — EVIDENCE FORM GENERATION (structured steps + aspects, schemaVersion 3)
+PASS 1 — EVIDENCE FORM GENERATION (schemaVersion 3).
 
-You are generating a tailored, multi-step evidence-collection form for a user who is
-returning or selling a used item. Based on the stated reason, any clarifying photos the
-user already attached, and the product listing data, decide exactly what additional
-evidence is needed to (a) fairly grade THIS specific item for resale and (b) verify the
-stated reason — asking the fewest, highest-signal things and nothing redundant.
+Generate a tailored evidence-collection form for a user returning/selling a used item.
+Ask the fewest, highest-signal things needed to grade THIS product and verify the reason.
 
-Every category — often every product — needs different checks: a camera needs the
-sensor, serial, and ports; a shoe needs the sole, upper, and size label; a garment needs
-the inner collar, seams, cuffs, and any stain close-up.
-
-PRODUCT-SPECIFIC FORM INSTRUCTIONS (if present — MANDATORY):
-If a "PRODUCT-SPECIFIC INSTRUCTIONS" section appears in this prompt, you MUST treat
-it as authoritative form directives. Specifically:
-  • Any field or capture type it explicitly requests (e.g. "request a video",
-    "top view is compulsory", "require a close-up of X") MUST appear in the form
-    with required=true. You cannot skip or demote these fields.
-  • Any wording, label, or guidance it specifies for a field MUST be used as-is.
-  • Any media type it requires (video / photo) MUST be reflected in that field's
-    capture_mode.
-  • You STILL decide the rest of the form freely: steps, additional helpful fields,
-    structure, ordering, and any standard category checks. The product instructions
-    only mandate what is explicitly listed — everything else is your judgment.
-  • If the product instructions say "pass all", "do not verify", or an equivalent
-    phrase → set every field's required=false and write permissive validation_criteria
-    (e.g. "Any photo of the item is acceptable.").
+PRODUCT-SPECIFIC INSTRUCTIONS COME FIRST (if a "PRODUCT-SPECIFIC INSTRUCTIONS" section
+is present, obey it literally):
+  • Any field / capture it names (e.g. "request a video", "TOP VIEW compulsory") MUST
+    appear with required=true, using its exact wording, label, and media type.
+  • You still freely design the REST of the form (steps, extra helpful fields, ordering,
+    standard category checks). The instructions only mandate what they explicitly list.
+  • If it says "pass all" / "don't verify" → set every field required=false with
+    permissive validation_criteria (e.g. "Any photo of the item is acceptable.").
 
 INPUT CONTEXT:
 - Reason: {reason}
 - Category: {category}
-- Product listing data (the catalog product this item corresponds to — title,
-  description, brand, condition, price, etc.): {listing_data}
+- Product listing data: {listing_data}
 - Customer trust tier: {trust_tier}
 - Item value: {item_value}
 {image_hints_section}
 
-ATTACHED IMAGES (may be empty): one or more reference photos of the catalog product
-(showing what it looks like when new) may be attached first, followed by any clarifying
-photos the user already uploaded. Use the reference photos to identify the EXACT product
-(form factor, ports, materials, distinguishing parts) so the checklist is specific to
-THIS product, not just its category. If listing data or reference photos are empty, fall
-back to category-level reasoning.
+ATTACHED IMAGES (may be empty): reference photos of the catalog product, then any
+clarifying photos the user already uploaded. Use references to make the form specific to
+THIS product. Fall back to category-level reasoning if they're empty.
 
-============================================================================
-OUTPUT — produce a Form_Schema as a JSON object with EXACTLY this shape:
-============================================================================
+OUTPUT — a Form_Schema JSON object with EXACTLY this shape:
 {{
   "title": "<short form title>",
   "schemaVersion": 3,
@@ -52,8 +32,8 @@ OUTPUT — produce a Form_Schema as a JSON object with EXACTLY this shape:
   "steps": [
     {{
       "id": "<snake_case_step_id>",
-      "title": "<short human-readable step name shown in the stepper>",
-      "purpose": "<one line: what this step is for>",
+      "title": "<short step name>",
+      "purpose": "<one line>",
       "fields": [
         {{
           "id": "<snake_case_field_id>",
@@ -61,7 +41,7 @@ OUTPUT — produce a Form_Schema as a JSON object with EXACTLY this shape:
           "type": "photo | video | text | boolean | select",
           "required": true | false,
           "capture_mode": "video | photo | text",
-          "guidance": "<plain-language instruction: what to capture, or for video what to pan across>",
+          "guidance": "<what to capture / what to pan across>",
           "options": ["<only for type=select>"],
           "aspects": [
             {{
@@ -70,9 +50,9 @@ OUTPUT — produce a Form_Schema as a JSON object with EXACTLY this shape:
               "verifiability": "photo | ocr | none",
               "importance": "critical | standard | minor",
               "detail_level": "high | normal",
-              "expected_subject": "<short noun phrase describing exactly what must be shown>",
-              "required_views": ["<precise view/region>", "<precise view/region>"],
-              "validation_criteria": "<one sentence: what makes the evidence ACCEPTABLE>",
+              "expected_subject": "<what must be shown>",
+              "required_views": ["<precise view>", "<precise view>"],
+              "validation_criteria": "<what makes the evidence acceptable>",
               "satisfied": false
             }}
           ]
@@ -83,122 +63,24 @@ OUTPUT — produce a Form_Schema as a JSON object with EXACTLY this shape:
   "photo_guidance": ["<short tip>", "<short tip>"]
 }}
 
-Each photo/video field MUST carry an "aspects" array with one or more aspects. A "text"
-field needs no media and SHOULD carry a single aspect describing the written answer
-(typically verifiability=none). If you cannot organize the form into steps, you MAY
-instead return a flat top-level "fields": [ ... ] array (legacy fallback); but the
-PREFERRED output is the ordered "steps" structure above.
+RULES:
+- Every photo/video field carries an "aspects" array. A text field carries one aspect
+  with verifiability=none and no media.
+- Order steps: (1) identity/overall condition, (2) category checks, (3) reason-specific
+  defect. De-duplicate — ask each distinct thing once. Cap at 8 photo/video fields.
+- required=true ONLY for genuinely blocking fields (the claimed defect, or an identity
+  shot if no other photo exists) — at most 1-2 per form. Everything else required=false.
+- Aspects: for kind=angle/region, fill required_views with PRECISE terms (never "sides" —
+  name each edge/region). Prefer ONE video over many angles; state exactly what to pan
+  across. kind=label → verifiability=ocr. Claims a camera can't confirm
+  (internal fault, smell, fit) → verifiability=none, collect as text, never request
+  media to "prove" them.
+- importance: reason-related → critical; standard checks → standard; nice-to-have → minor.
+  detail_level: defect/texture aspects → high; else normal.
+- If a clarifying photo already shows an aspect, set "satisfied": true and don't re-request.
+- Fit/size reasons: treat the fit claim as ACCEPTED; emit no aspect to verify it, but
+  still emit normal condition aspects.
+- Scale by context: high value OR low trust → more evidence, stricter criteria; low value
+  OR high trust → less, lenient; "unknown" → neutral. Always cap at 8 photo/video fields.
 
-============================================================================
-HOW TO BUILD THE STEPS (ordered):
-============================================================================
-1. IDENTITY / OVERALL (base): confirm this is the purchased item and its overall
-   condition — e.g. an identity/tags/label step and an overall-condition step. Requesting a specific video is a generally a better way. But depends on product and claim. 
-2. CATEGORY CHECKS: the standard checks for this category (e.g. apparel: inner collar,
-   underarms, cuffs, seams, fabric texture; electronics: ports, screen, serial).
-3. REASON-SPECIFIC DEFECT: a step (or field) targeting the specific defect/claim in the
-   stated reason.
-De-duplicate: ask for each distinct thing ONCE. If two sources would request the same
-(kind, expected_subject), keep a single aspect. Keep the whole form to at most 8
-photo/video fields total — prefer the few highest-signal captures.
-
-============================================================================
-REQUIRED vs OPTIONAL FIELDS (Req 4.2, 4.3):
-============================================================================
-Set "required": true ONLY for fields that are genuinely blocking — without them the
-item CANNOT be graded or the stated reason CANNOT be evaluated at all. This means at
-most 1–2 fields per form should be required. Specifically:
-  * REQUIRED: the one field that directly shows the claimed defect or reason (e.g. the
-    crack, the stain, the missing tag). Without it there is nothing to grade.
-  * REQUIRED: an overall condition / identity shot IF the item has no other photos and
-    it is needed to establish the item is real and in-hand.
-  * OPTIONAL (required=false): supplementary evidence that helps the grade but whose
-    absence does not block it — e.g. "close-up of stitching", "serial label", extra
-    angles of an undamaged area, "side view". These enrich the grade but the pipeline
-    can still produce one without them.
-  * OPTIONAL by default for: any secondary angle, any "nice to have" context photo, any
-    step that covers category checks beyond the direct reason, any field whose aspect
-    importance is "standard" or "minor".
-When in doubt, make it optional. A user should never feel trapped by paperwork for a
-straightforward return. Required fields block the "Next" button and block submission —
-use that power sparingly.
-
-============================================================================
-ASPECT RULES:
-============================================================================
-- For kind=angle or kind=region, ALWAYS populate "required_views" with the SPECIFIC
-  views/regions that make the aspect complete. Use PRECISE terms.
-  * FORBIDDEN: the word "sides" and other vague/overloaded terms. NEVER write "sides".
-  * Instead name each edge/region explicitly, e.g. "left edge", "right edge",
-    "top edge", "bottom edge", "inner collar", "left cuff", "right cuff", "sole",
-    "heel", "left port cluster". Only list views that are genuinely needed for THIS
-    field — do NOT add front/back (or any view) that the field does not require.
-  * Instead of requesting multiple angles, REQUEST a video! Tell the user exactly what to record in the video.
-- For kind=label (text/serial/size/care tag), set verifiability=ocr.
-- VERIFIABILITY:
-  * Use verifiability=photo for anything a camera can clearly show.
-  * Use verifiability=ocr for printed text/serial/size/care labels.
-  * Use verifiability=none for any claim a camera CANNOT confirm — internal/component
-    failure, intermittent fault, odor/smell, shrinkage, "feel", software behavior, or
-    simply the user's already-accepted reason. For a verifiability=none claim, DO NOT
-    request media that purports to prove it; instead either capture only what media can
-    legitimately show (identity, exterior, a visible error message) under a separate
-    aspect, or collect the claim as a text field.
-- IMPORTANCE (weight by the stated reason — Req 8.1):
-  * Raise aspects directly tied to the stated reason to "critical".
-  * Keep standard category checks at "standard".
-  * Lower unrelated/nice-to-have checks to "minor".
-- DETAIL_LEVEL: mark texture/defect aspects (pilling, stains, weave, scratches,
-  fine cracks) as "high"; everything else "normal".
-- CLARIFYING PHOTOS (Req 8.2): if a clarifying photo the user already uploaded clearly
-  shows an aspect, set that aspect "satisfied": true and DO NOT re-request it as a new
-  required field.
-
-============================================================================
-FIT / SIZE REASONS (Req 3.5):
-============================================================================
-- If the stated reason is fit/size related ("too small", "too big", "did not fit",
-  "wrong size"), TREAT THE FIT CLAIM AS ACCEPTED. Emit NO aspect that attempts to verify
-  the fit/size claim. Still emit the normal CONDITION-grading aspects (identity, tags,
-  wear, defects) so the item can be graded for resale.
-
-============================================================================
-CAPTURE MODE (efficiency-first — Req 5.1, 5.2, 5.3, 5.4):
-============================================================================
-- Choose the LEAST effort that still proves the point, per field:
-  * capture_mode="text" when the field's claim can be satisfied by a written answer
-    (a verifiability=none claim, a yes/no condition, a self-declared note). Do NOT
-    request media for a text field.
-  * capture_mode="video" when a single short video can capture MULTIPLE required_views
-    of the field in one action (e.g. panning around all edges of a phone, or showing a
-    garment front, back, and inner collar). PREFER video in that case. When you choose
-    video, state in the field "guidance", in plain language, exactly what the user
-    should pan across or show (e.g. "Slowly pan around all four edges, then flip to show
-    the back").
-  * capture_mode="photo" otherwise (a single focused still).
-
-============================================================================
-CONTEXT — SCALE BY ITEM VALUE AND TRUST TIER (Req 6.5, 8.5):
-============================================================================
-Use the "Customer trust tier" and "Item value" from INPUT CONTEXT to scale BOTH the
-NUMBER of steps/fields/aspects AND how STRICT their validation_criteria are:
-- HIGH item value OR LOW customer trust → request MORE evidence and be STRICTER: add
-  the extra category checks, raise borderline aspects toward "critical", demand the
-  full set of required_views, and write tight validation_criteria. Lean toward the
-  upper end of the field budget.
-- LOW item value OR HIGH customer trust → request LESS and be LENIENT: keep only the
-  few highest-signal captures, collapse optional checks, prefer a single video or text
-  field over several photos, and write relaxed validation_criteria. Lean toward the
-  lower end of the field budget.
-- When either value is "unknown", treat it as a NEUTRAL/medium signal and apply the
-  default behavior (do not inflate or deflate the form on its account).
-- Always respect the hard cap of at most 8 photo/video fields regardless of context.
-
-
-- Tailor everything to the reason and the specific product. Always include at least one
-  field for any visible defect the user mentioned.
-- Each step requests the MINIMUM set of fields needed for that step's purpose; never
-  duplicate a request already satisfied by a clarifying photo or an earlier step.
-- Field label, guidance, expected_subject, and required_views for a field MUST describe
-  a mutually consistent scope.
-- Return ONLY the JSON object. No prose, no markdown, no code fences.
+Return ONLY the JSON object. No prose, no markdown, no code fences.

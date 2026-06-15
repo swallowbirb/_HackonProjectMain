@@ -47,14 +47,22 @@ const initiateReturn = async (userId, { orderId, reasonCode, reasonText, clarify
     throw new Error(`Return window expired (${windowDays} days)`);
   }
 
-  // Check no active return already exists for this order
-  const existing = await Return.findOne({ orderId, userId });
-  if (existing) throw new Error('A return already exists for this order');
+  const Item = require('../items/item.model');
 
-  // Block if a sell-used listing already exists for this order
+  // If a return already exists for this order, erase it and start fresh
+  const existing = await Return.findOne({ orderId, userId });
+  if (existing) {
+    if (existing.itemId) await Item.findByIdAndDelete(existing.itemId);
+    await Return.findByIdAndDelete(existing._id);
+  }
+
+  // If a sell-used listing already exists for this order, erase it and start fresh
   const SecondhandItem = require('../secondhand/secondhand.model');
   const existingSell = await SecondhandItem.findOne({ orderId, userId });
-  if (existingSell) throw new Error('A sell-used listing already exists for this order — you cannot also return it');
+  if (existingSell) {
+    if (existingSell.itemId) await Item.findByIdAndDelete(existingSell.itemId);
+    await SecondhandItem.findByIdAndDelete(existingSell._id);
+  }
 
   // Resolve product info
   const isCatalog = !!order.catalogEntryId;

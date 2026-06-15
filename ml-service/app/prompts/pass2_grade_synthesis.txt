@@ -1,43 +1,21 @@
-PASS 2 — GRADE SYNTHESIS
+PASS 2 — GRADE SYNTHESIS.
 
-PRODUCT-SPECIFIC INSTRUCTIONS (if present — MANDATORY):
-If a "PRODUCT-SPECIFIC INSTRUCTIONS" section appears in this prompt, you MUST treat
-it as binding before applying the synthesis rules below:
-  • If it specifies a grade (e.g. "give C grade", "grade as B") → output EXACTLY
-    that grade. Do not override it with your own assessment of the evidence.
-  • If it tells you to mention specific defects or findings → include them verbatim
-    in the rationale and defects[] array, with the severity and description it states.
-  • If it says "pass all", "auto approve", or an equivalent phrase → grade as A or B
-    (your judgment on which), set confidence=high, routingHint=resell, and note in
-    the rationale that the product configuration auto-approves this item.
-  • After honoring the product instructions, you may add any additional observed
-    defects from the evidence summary, but you cannot change the mandated grade.
+PRODUCT-SPECIFIC INSTRUCTIONS COME FIRST (if a "PRODUCT-SPECIFIC INSTRUCTIONS" section
+is present, obey it before the rules below):
+  • Specifies a grade → output EXACTLY that grade, don't override it.
+  • Tells you to mention defects/findings → include them verbatim in rationale + defects[].
+  • "pass all" / "auto approve" → grade A or B, confidence=high, routingHint=resell, note
+    in rationale that the product config auto-approves.
+  • You may add other observed defects, but never change a mandated grade.
 
-You are given a structured Analysis_Summary assembled from Evidence Inspector
-fragments. The summary is organized BY FIELD. Each field's entry uses ONE of two
-shapes (you must handle both):
-
-  • v2.35 (field-level fragment, preferred): the inspector judged ALL photos for
-    that field as a set in one call. Carries:
-      image_urls            – the photos in the set
-      per_photo[]           – per-photo descriptive notes ({{role, usable, note}})
-      missing_views         – named views the user still needs to add (if any)
-      observations          – cross-set neutral findings
-      condition_signals     – described wear/damage (NOT graded)
-      ocr_text_per_photo    – any legible text per photo
-      inspector_status      – "ok" | "unavailable" | …
-
-  • v2.34 (per-photo fragments, legacy): the field's entry has a `photos[]` list
-    where each photo carries clarity, subject_match, identity_match, observations,
-    condition_signals, ocr_text, inspector_status, preflight.
-
-You do NOT receive raw images — reason only from the summary text below. You are
-the ONLY step that assigns a grade.
+You receive a per-field Analysis_Summary from the Evidence Inspector (describes; never
+grades). You are the ONLY step that grades. Reason only from the summary text — no raw
+images.
 
 ANALYSIS SUMMARY:
 {analysis_summary}
 
-Using the grading rubric, synthesize a single canonical Grade JSON with this exact shape:
+OUTPUT — synthesize one Grade JSON with this exact shape:
 {{
   "grade": "A | B | C | D",
   "qualityScore": <integer 0-100>,
@@ -54,23 +32,14 @@ Using the grading rubric, synthesize a single canonical Grade JSON with this exa
 }}
 
 RULES:
-- Reason over each field's evidence. Reference findings by the named field they
-  came from (e.g. "sole_photo shows heavy tread wear") and put that field name in
-  each defect's "location".
-- The fragments DESCRIBE; YOU assign each defect's severity (minor/moderate/major)
-  and the overall grade. Do not expect severities in the input.
-- For any required field that has no usable evidence — including a v2.35 field
-  fragment with non-empty `missing_views`, or a v2.34 per-photo fragment with
-  identity/subject mismatch reported, or no fragment at all — list that field in
-  missingEvidence and set confidence to medium or low (never high).
-- VERIFIABILITY RULE (Req 3.3): if a field's entry includes `"has_unverifiable_claim": true`
-  or any aspect with `"verifiability": "none"`, that claim CANNOT be confirmed from the
-  provided media. For those specific claims you MUST write in your rationale:
-  "cannot be determined from the provided media" and set confidence to medium or low.
-  Do NOT assign a confident grade to a claim that is physically impossible to verify
-  from photos or video — route to human review in your rationale instead.
-- If "warnings" includes "identity_mismatch_reported", treat the item identity as
-  unverified: reflect it in the rationale, do not grade higher than C on identity doubt.
-- If a hard or soft fraud signal is present in "fraud", reflect it in the rationale and grade.
-- grade, confidence, and routingHint MUST be one of the allowed enum values exactly.
-- Return ONLY the JSON object, no surrounding text, no code fences.
+- Reference findings by field name; put that field name in each defect's "location".
+- The summary describes; YOU assign severity and the overall grade.
+- Any required field with no usable evidence (non-empty missing_views, identity/subject
+  mismatch, or no fragment) → list in missingEvidence and set confidence medium/low.
+- Any aspect with verifiability=none / "has_unverifiable_claim": true → write "cannot be
+  determined from the provided media" in rationale, set confidence medium/low, route to
+  human review.
+- "identity_mismatch_reported" → treat identity as unverified, don't grade above C.
+- Reflect any fraud signal in rationale and grade.
+- grade, confidence, routingHint MUST be exact enum values.
+- Return ONLY the JSON object. No prose, no code fences.

@@ -733,7 +733,7 @@ const _persistFormToItem = async (itemId, { status, schema, source }) => {
  * Kick off Pass 1 form generation for an item (fire-and-forget).
  * Stores readiness state (cache + Item) so the frontend can poll getForm.
  */
-const startFormGeneration = async (itemId, { productId, reason, category, initialPhotos }) => {
+const startFormGeneration = async (itemId, { productId, reason, category, initialPhotos, bustCache = false }) => {
   _formState.set(itemId, { status: 'pending', schema: null });
 
   // Load the catalog product so Pass 1 can tailor the form to THIS specific product
@@ -812,7 +812,7 @@ const startFormGeneration = async (itemId, { productId, reason, category, initia
     const startedAt = Date.now();
     const resp = await axios.post(`${ML_SERVICE_URL}/grade/form`, {
       product_id: productId,
-      reason,
+      reason: reason || 'Selling used item',
       category,
       initial_photos: initialPhotos || [],
       trust_tier: trustTier,
@@ -823,6 +823,7 @@ const startFormGeneration = async (itemId, { productId, reason, category, initia
       base_prompt: prompts.base_prompt,
       category_prompt: prompts.category_prompt,
       seller_prompt: prompts.seller_prompt,
+      bust_cache: bustCache || false,
       ...templateBody,
     }, { timeout: ML_TIMEOUT_MS });
     const ms = Date.now() - startedAt;

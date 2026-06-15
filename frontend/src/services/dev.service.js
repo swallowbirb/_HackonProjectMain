@@ -9,6 +9,31 @@ export const MONTAGE_KEY = 'dev_montage_triage';
  */
 export const getMontageMode = () => localStorage.getItem(MONTAGE_KEY) === 'true';
 
+// Shared localStorage key for the cache-bypass developer toggle.
+export const BUST_CACHE_KEY = 'dev_bust_cache';
+
+/**
+ * Returns true when the cache-bypass toggle is on — form generation will
+ * always trigger a fresh Gemini call, ignoring any TTL-cached schema.
+ */
+export const getBustCacheMode = () => localStorage.getItem(BUST_CACHE_KEY) === 'true';
+
+/**
+ * DEV ONLY — Force-regenerate the evidence form for an item, bypassing the
+ * ML-service TTL cache so a fresh Gemini Pass-1 call always fires.
+ */
+export const regenForm = async (itemId) => {
+  try {
+    const response = await api.post('/dev/regen-form', { itemId });
+    return response.data;
+  } catch (error) {
+    return {
+      success: false,
+      message: error.response?.data?.message || error.message || 'Regen failed',
+    };
+  }
+};
+
 export const eraseAllData = async () => {
   const response = await api.delete('/dev/erase');
   return response.data;

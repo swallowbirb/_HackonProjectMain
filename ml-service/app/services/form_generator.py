@@ -79,6 +79,11 @@ logger = logging.getLogger("ml-service.form_generator")
 # Module-scoped cache so it survives across requests within the process.
 _pass1_cache = TTLCache(settings.grade_cache_ttl_seconds)
 
+# CACHING DISABLED. Flip to True to re-enable the Pass-1 form cache. While False,
+# every /form request regenerates via Gemini — the cache is still written, just
+# never read, so re-enabling is instant.
+_PASS1_CACHE_ENABLED = False
+
 # Form_Schema contract version — bumped when the schema shape changes so the
 # frontend / Evidence_Bundle can reason about compatibility (improvement #9).
 # v3: structured steps[] + per-field aspects[] + capture_mode (additive; legacy
@@ -107,6 +112,14 @@ DEFAULT_ASPECT_VERIFIABILITY = "photo"
 DEFAULT_ASPECT_IMPORTANCE = "standard"
 DEFAULT_ASPECT_DETAIL_LEVEL = "normal"
 DEFAULT_CAPTURE_MODE = "photo"
+
+# Unambiguous "this field wants a video" wording. Used as a fallback when the model
+# describes a video in the label/guidance but forgets to set type/capture_mode=video
+# (Gemini is inconsistent about the structured field). Kept tight — only fires on
+# clear video language so ordinary photo fields are never upgraded.
+_VIDEO_INTENT_RE = re.compile(
+    r"\b(videos?|footage|panning|pan over|pan across|pan around)\b", re.IGNORECASE
+)
 
 # Status strings surfaced to the backend / progressive-form layer.
 STATUS_AI = "ai"
@@ -269,6 +282,17 @@ def _resolve_capture_mode(field: dict) -> str:
         return "text"
     if emitted == "video" or field.get("type") == "video":
         return "video"
+
+    # Fallback: honor explicit video intent in the field's own wording even when the
+    # model forgot to set type/capture_mode (e.g. label "Overall Condition Video",
+    # guidance "provide a video panning over the jacket"). Only an unambiguous video
+    # signal upgrades photo→video, so normal photo fields are unaffected.
+    text = " ".join(
+        str(field.get(k) or "") for k in ("label", "guidance", "expected_subject")
+    )
+    if _VIDEO_INTENT_RE.search(text):
+        return "video"
+
     return DEFAULT_CAPTURE_MODE
 
 
@@ -494,6 +518,8 @@ def _normalize_schema(schema: dict, category: Optional[str]) -> dict:
 def get_cached_schema(product_id: Optional[str], reason: str,
                       category: Optional[str] = None) -> Optional[dict]:
     """Return a cached Form_Schema if present and unexpired, else None."""
+    if not _PASS1_CACHE_ENABLED:
+        return None
     return _pass1_cache.get(cache_key(product_id, reason, category))
 
 
@@ -536,6 +562,7 @@ async def generate_form(
     trust_tier: Optional[str] = None,
     item_value: Optional[float] = None,
     pass1_template: Optional[str] = None,
+    bust_cache: bool = False,
     trace=None,
 ) -> dict:
     """
@@ -547,12 +574,17 @@ async def generate_form(
     key = cache_key(product_id, reason, category)
 
     # Cache hit -> skip Gemini entirely (Req 3.3, 12.3).
-    cached = _pass1_cache.get(key)
-    if cached is not None:
+    # bust_cache=True (dev/testing only) forces a fresh Gemini call even on a hit.
+    # _PASS1_CACHE_ENABLED=False disables the read globally (cache currently OFF).
+    cached = _pass1_cache.get(key) if _PASS1_CACHE_ENABLED else None
+    if cached is not None and not bust_cache:
         if trace is not None:
             trace.success("pass1", "PASS1_CACHE",
                           f"⚡ Pass 1 cache HIT (key={key[:12]}…) — skipping Gemini entirely", cache_key=key)
         return {"schema": cached, "status": STATUS_CACHE, "cached": True, "key": key}
+    if cached is not None and bust_cache and trace is not None:
+        trace.info("pass1", "PASS1_CACHE_BUST",
+                   f"🔄 Pass 1 cache BUSTED (key={key[:12]}…) — forcing fresh Gemini call", cache_key=key)
 
     if trace is not None:
         trace.info("pass1", "PASS1_START",

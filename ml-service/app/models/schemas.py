@@ -235,6 +235,8 @@ class FormRequest(BaseModel):
     item_value: Optional[float] = None      # resolved item value (currency units)
     # v3 template overrides — additive/optional. When present, prefer over bundled file.
     pass1_template: Optional[str] = None    # admin-edited pass1_form_generation.txt override
+    # dev/testing only — skip the TTL cache and always call Gemini
+    bust_cache: bool = False
 
 
 class FormResponse(BaseModel):

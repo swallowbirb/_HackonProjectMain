@@ -216,6 +216,10 @@ function App() {
                 element={<ProtectedRoute><SellerGuard><EditProductPage /></SellerGuard></ProtectedRoute>}
               />
               <Route
+                path="/admin/edit-product/:id"
+                element={<ProtectedRoute><AdminGuard><EditProductPage /></AdminGuard></ProtectedRoute>}
+              />
+              <Route
                 path="/seller/new-offer"
                 element={<ProtectedRoute><SellerGuard><NewOfferPage /></SellerGuard></ProtectedRoute>}
               />

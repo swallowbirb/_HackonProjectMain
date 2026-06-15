@@ -15,14 +15,22 @@ const initiateFromOrder = async (userId, { orderId, description, askingPrice, cl
 
   if (!order) throw new Error('Order not found or not eligible');
 
-  // Check no existing sell-used for this order
-  const existing = await SecondhandItem.findOne({ orderId, userId });
-  if (existing) throw new Error('A sell-used listing already exists for this order');
+  const Item = require('../items/item.model');
 
-  // Block if a return already exists for this order
+  // If a sell-used listing already exists for this order, erase it and start fresh
+  const existing = await SecondhandItem.findOne({ orderId, userId });
+  if (existing) {
+    if (existing.itemId) await Item.findByIdAndDelete(existing.itemId);
+    await SecondhandItem.findByIdAndDelete(existing._id);
+  }
+
+  // If a return already exists for this order, erase it and start fresh
   const Return = require('../returns/return.model');
   const existingReturn = await Return.findOne({ orderId, userId });
-  if (existingReturn) throw new Error('A return already exists for this order — you cannot also sell it');
+  if (existingReturn) {
+    if (existingReturn.itemId) await Item.findByIdAndDelete(existingReturn.itemId);
+    await Return.findByIdAndDelete(existingReturn._id);
+  }
 
   const isCatalog = !!order.catalogEntryId;
   const productTitle = isCatalog ? order.catalogEntryId?.title : order.productId?.title;

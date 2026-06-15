@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useCustomUser } from '../../context/CustomUserContext';
-import { Terminal, Shield, User, ShoppingBag, LogOut, Settings, Trash2, Download, Database, RotateCcw, Zap, CheckCircle2, XCircle, Loader2, Wand2, FastForward } from 'lucide-react';
+import { Terminal, Shield, User, ShoppingBag, LogOut, Settings, Trash2, Download, Database, RotateCcw, Zap, CheckCircle2, XCircle, Loader2, Wand2, FastForward, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { eraseAllData, populateFakeStore, downloadDatabaseSnapshot, resetReturnData, pingGemini, manualGrade } from '../../services/dev.service';
+import { eraseAllData, populateFakeStore, downloadDatabaseSnapshot, resetReturnData, pingGemini, manualGrade, regenForm, BUST_CACHE_KEY } from '../../services/dev.service';
 
 export default function DevTools() {
   const isDev = process.env.NODE_ENV !== 'production' || import.meta.env?.DEV || import.meta.env?.VITE_SHOW_DEVTOOLS === 'true';
@@ -26,6 +26,27 @@ export default function DevTools() {
   const [manualReason, setManualReason] = useState('');
   const [gradingManually, setGradingManually] = useState(false);
   const [manualGradeResult, setManualGradeResult] = useState(null);
+
+  // Cache-bypass toggle — persisted in localStorage so it survives page reloads.
+  const [bustCache, setBustCache] = useState(() => localStorage.getItem(BUST_CACHE_KEY) === 'true');
+  const toggleBustCache = () => {
+    setBustCache((prev) => {
+      const next = !prev;
+      localStorage.setItem(BUST_CACHE_KEY, String(next));
+      return next;
+    });
+  };
+  const [regenning, setRegenning] = useState(false);
+  const [regenResult, setRegenResult] = useState(null);
+
+  const handleRegenForm = async () => {
+    if (!itemIdFromUrl) return;
+    setRegenning(true);
+    setRegenResult(null);
+    const result = await regenForm(itemIdFromUrl);
+    setRegenResult(result);
+    setRegenning(false);
+  };
 
   const handleManualGrade = async () => {
     if (!itemIdFromUrl) return;
@@ -345,6 +366,68 @@ export default function DevTools() {
                   <span>Open an item's <span className="text-zinc-400">evidence</span> or <span className="text-zinc-400">status</span> page to skip grading.</span>
                 </div>
               )}
+            </div>
+
+            {/* Cache Control */}
+            <div className="space-y-2">
+              <span className="text-[11px] text-zinc-500 font-medium tracking-wider uppercase block">Cache Control</span>
+              <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-3 space-y-3">
+                {/* Use Cache toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-medium text-zinc-300">Use Cache</span>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">
+                      {bustCache ? 'OFF — Gemini called every time' : 'ON — cached schemas served when available'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!bustCache}
+                    onClick={toggleBustCache}
+                    title="When off, Pass-1 form generation always calls Gemini, ignoring any cached schema"
+                    className={[
+                      'relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none cursor-pointer',
+                      bustCache ? 'bg-orange-500' : 'bg-emerald-500',
+                    ].join(' ')}
+                  >
+                    <span
+                      className={[
+                        'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform',
+                        bustCache ? 'translate-x-4.5' : 'translate-x-1',
+                      ].join(' ')}
+                    />
+                  </button>
+                </div>
+
+                {/* Regenerate form button — only on item pages */}
+                {itemIdFromUrl ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleRegenForm}
+                      disabled={regenning}
+                      className="w-full flex items-center justify-center gap-1.5 bg-orange-950/40 hover:bg-orange-900/30 border border-orange-900/40 hover:border-orange-900/60 p-2.5 rounded-xl text-xs font-semibold text-orange-300 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {regenning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                      <span>{regenning ? 'Regenerating form…' : 'Regenerate Form (No Cache)'}</span>
+                    </button>
+                    {regenResult && (
+                      <div className={`rounded-xl border p-2.5 text-[11px] ${regenResult.success ? 'bg-emerald-950/30 border-emerald-900/50 text-emerald-200' : 'bg-red-950/30 border-red-900/50 text-red-200'}`}>
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          {regenResult.success ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <XCircle className="w-3.5 h-3.5 text-red-400" />}
+                          <span>{regenResult.message || (regenResult.success ? 'Regeneration started' : 'Failed')}</span>
+                        </div>
+                        {regenResult.success && <div className="text-zinc-500 mt-0.5">Reload the evidence page to see the new form.</div>}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-zinc-600 flex items-center gap-1.5">
+                    <RefreshCw className="w-3 h-3" />
+                    Open an item's evidence page to regenerate its form.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* LLM Health — quick Gemini connectivity / quota check */}

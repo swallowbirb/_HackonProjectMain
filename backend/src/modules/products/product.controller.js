@@ -65,10 +65,12 @@ const getProductById = async (req, res, next) => {
 
 const updateProduct = async (req, res, next) => {
   try {
-    const sellerId = req.user._id;
+    const userId = req.user._id;
     const productId = req.params.id;
+    const isAdmin = req.user.role === 'admin';
     
-    const updatedProduct = await productService.updateProduct(productId, sellerId, req.body);
+    // If admin, allow updating any product; otherwise, only allow updating own products
+    const updatedProduct = await productService.updateProduct(productId, userId, req.body, isAdmin);
     
     if (!updatedProduct) {
       return res.status(404).json({

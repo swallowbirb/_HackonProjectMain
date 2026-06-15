@@ -48,6 +48,7 @@ async def generate_evidence_form(request: FormRequest):
         trust_tier=request.trust_tier,
         item_value=request.item_value,
         pass1_template=request.pass1_template,
+        bust_cache=request.bust_cache,
         trace=trace,
     )
     return FormResponse(

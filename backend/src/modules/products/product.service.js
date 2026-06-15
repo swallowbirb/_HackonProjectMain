@@ -93,9 +93,12 @@ const getProductById = async (productId) => {
     .lean();
 };
 
-const updateProduct = async (productId, sellerId, updateData) => {
+const updateProduct = async (productId, userId, updateData, isAdmin = false) => {
+  // If admin, update without checking sellerId; otherwise enforce sellerId match
+  const query = isAdmin ? { _id: productId } : { _id: productId, sellerId: userId };
+  
   return await Product.findOneAndUpdate(
-    { _id: productId, sellerId },
+    query,
     { $set: updateData },
     { new: true, runValidators: true }
   ).lean();
