@@ -48,6 +48,7 @@ app.use(helmet());
 
 // CORS — allow the frontend origin (Phase 3.5). In development we accept the
 // configured FRONTEND_URL plus common Vite ports; falls back to permissive if unset.
+// In production, allow Vercel deployments (production + previews) plus FRONTEND_URL.
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
@@ -55,11 +56,21 @@ const allowedOrigins = [
   'http://localhost:3000',
 ].filter(Boolean);
 
+// Patterns for allowed origins (supports Vercel preview deployments)
+const allowedOriginPatterns = [
+  /^https:\/\/.*\.vercel\.app$/,  // Any Vercel deployment
+];
+
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow non-browser tools (no origin) and any whitelisted origin.
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Match against patterns (Vercel preview URLs)
+      if (allowedOriginPatterns.some((pattern) => pattern.test(origin))) {
+        return callback(null, true);
+      }
       // In development, be permissive so the team isn't blocked by port drift.
       if (process.env.NODE_ENV !== 'production') return callback(null, true);
       return callback(new Error(`CORS: origin ${origin} not allowed`));
