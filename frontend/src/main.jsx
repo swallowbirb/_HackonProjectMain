@@ -14,10 +14,11 @@ if (!PUBLISHABLE_KEY) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY || "missing-key"} afterSignOutUrl="/">
+    <h1>hihi</h1>
+    {/* <ClerkProvider publishableKey={PUBLISHABLE_KEY || "missing-key"} afterSignOutUrl="/">
       <CartProvider>
         <App />
       </CartProvider>
-    </ClerkProvider>
+    </ClerkProvider> */}
   </React.StrictMode>,
 )
