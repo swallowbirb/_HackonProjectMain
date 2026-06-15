@@ -302,9 +302,6 @@ const geminiPing = async (req, res, next) => {
     });
   }
 };
-    });
-  }
-};
 
 /**
  * DEV ONLY — Skip the AI grading pipeline and assign a grade by hand.
