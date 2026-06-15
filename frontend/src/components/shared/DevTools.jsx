@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { eraseAllData, populateFakeStore, downloadDatabaseSnapshot, resetReturnData, pingGemini, manualGrade } from '../../services/dev.service';
 
 export default function DevTools() {
-  const isDev = process.env.NODE_ENV !== 'production' || import.meta.env?.DEV;
+  const isDev = process.env.NODE_ENV !== 'production' || import.meta.env?.DEV || import.meta.env?.VITE_SHOW_DEVTOOLS === 'true';
   if (!isDev) return null;
 
   const { isSignedIn, mongoUser, role } = useCustomUser();
