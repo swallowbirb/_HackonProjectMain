@@ -54,11 +54,13 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
+  'http://localhost:5001',
 ].filter(Boolean);
 
-// Patterns for allowed origins (supports Vercel preview deployments)
+// Patterns for allowed origins (supports Vercel preview deployments and Render)
 const allowedOriginPatterns = [
   /^https:\/\/.*\.vercel\.app$/,  // Any Vercel deployment
+  /^https:\/\/.*\.onrender\.com$/,  // Any Render deployment
 ];
 
 app.use(

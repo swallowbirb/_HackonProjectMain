@@ -255,17 +255,53 @@ const geminiPing = async (req, res, next) => {
     return res.status(200).json({ success: true, ...resp.data });
   } catch (error) {
     // ML service unreachable, or it returned a non-2xx. Surface a useful reason.
+    const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+    
     if (error.code === 'ECONNREFUSED') {
       return res.status(200).json({
         success: false,
         ok: false,
-        error: `ML service not running at ${process.env.ML_SERVICE_URL || 'http://localhost:8000'} (ECONNREFUSED).`,
+        error: `ML service connection failed:\n\n` +
+               `• Target: ${ML_SERVICE_URL}\n` +
+               `• Error: ECONNREFUSED (service not running or unreachable)\n\n` +
+               `Possible causes:\n` +
+               `1. ML service is not deployed/running on Render\n` +
+               `2. ML_SERVICE_URL environment variable is incorrect\n` +
+               `3. Network/firewall blocking the connection\n\n` +
+               `Current ML_SERVICE_URL: ${ML_SERVICE_URL}`,
+        mlServiceUrl: ML_SERVICE_URL,
       });
     }
+    
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      return res.status(200).json({
+        success: false,
+        ok: false,
+        error: `ML service timeout:\n\n` +
+               `• Target: ${ML_SERVICE_URL}\n` +
+               `• Error: ${error.code} (request timed out after 30s)\n\n` +
+               `The ML service might be slow to respond or overloaded.`,
+        mlServiceUrl: ML_SERVICE_URL,
+      });
+    }
+    
+    // If the ML service responded but Gemini failed, pass through its error
+    if (error.response?.data) {
+      return res.status(200).json({
+        success: false,
+        ...error.response.data, // This includes ok, model, error from ML service
+        mlServiceUrl: ML_SERVICE_URL,
+      });
+    }
+    
     return res.status(200).json({
       success: false,
       ok: false,
-      error: error.response?.data?.detail || error.message || 'Gemini ping failed',
+      error: `Unexpected error:\n\n${error.message || 'Gemini ping failed'}`,
+      mlServiceUrl: ML_SERVICE_URL,
+    });
+  }
+};
     });
   }
 };
