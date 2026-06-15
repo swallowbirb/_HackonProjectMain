@@ -10,22 +10,6 @@ Every category — often every product — needs different checks: a camera need
 sensor, serial, and ports; a shoe needs the sole, upper, and size label; a garment needs
 the inner collar, seams, cuffs, and any stain close-up.
 
-PRODUCT-SPECIFIC FORM INSTRUCTIONS (if present — MANDATORY):
-If a "PRODUCT-SPECIFIC INSTRUCTIONS" section appears in this prompt, you MUST treat
-it as authoritative form directives. Specifically:
-  • Any field or capture type it explicitly requests (e.g. "request a video",
-    "top view is compulsory", "require a close-up of X") MUST appear in the form
-    with required=true. You cannot skip or demote these fields.
-  • Any wording, label, or guidance it specifies for a field MUST be used as-is.
-  • Any media type it requires (video / photo) MUST be reflected in that field's
-    capture_mode.
-  • You STILL decide the rest of the form freely: steps, additional helpful fields,
-    structure, ordering, and any standard category checks. The product instructions
-    only mandate what is explicitly listed — everything else is your judgment.
-  • If the product instructions say "pass all", "do not verify", or an equivalent
-    phrase → set every field's required=false and write permissive validation_criteria
-    (e.g. "Any photo of the item is acceptable.").
-
 INPUT CONTEXT:
 - Reason: {reason}
 - Category: {category}

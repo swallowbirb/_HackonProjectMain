@@ -1290,12 +1290,15 @@ const PromptsTab = () => {
 // ─── Main Admin Dashboard ─────────────────────────────────────────────────────
 
 const TABS = [
+  { id: 'products', label: 'Products', icon: Package },
+  { id: 'sellers', label: 'Sellers', icon: Users },
+  { id: 'reviews', label: 'Reviews', icon: Eye },
   { id: 'festive', label: 'Festive Mode', icon: Sparkles },
   { id: 'prompts', label: 'Prompt Console', icon: Zap },
 ];
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('festive');
+  const [activeTab, setActiveTab] = useState('products');
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -1335,10 +1338,11 @@ const AdminDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-        {/* Stats removed */}
+        {/* Stats Bar */}
+        {!statsLoading && <StatsBar stats={stats} />}
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-xl p-1 w-fit">
+        <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-xl p-1 w-fit flex-wrap">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1368,7 +1372,11 @@ const AdminDashboard = () => {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
           >
-            {activeTab === 'prompts' ? <PromptsTab /> : <FestiveTab />}
+            {activeTab === 'products' && <ProductsTab />}
+            {activeTab === 'sellers' && <SellersTab />}
+            {activeTab === 'reviews' && <ReviewsTab />}
+            {activeTab === 'festive' && <FestiveTab />}
+            {activeTab === 'prompts' && <PromptsTab />}
           </motion.div>
         </AnimatePresence>
       </div>

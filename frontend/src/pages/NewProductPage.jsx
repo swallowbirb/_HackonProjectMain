@@ -50,18 +50,40 @@ const NewProductPage = () => {
 
     try {
       const images = formData.images.filter(url => url.trim() !== '');
-      const response = await createProduct({
+
+      // The backend validator treats an empty string as "provided but invalid"
+      // for optional text fields like brandName / gradingInstructions. Strip
+      // empties so it sees them as omitted.
+      const payload = {
         ...formData,
         price: Number(formData.price),
         images,
-      });
+      };
+      if (!payload.brandName || !payload.brandName.trim()) delete payload.brandName;
+      if (!payload.gradingInstructions || !payload.gradingInstructions.trim()) {
+        delete payload.gradingInstructions;
+      }
+      if (payload.imageAngles && Object.keys(payload.imageAngles).length === 0) {
+        delete payload.imageAngles;
+      }
+      if (Array.isArray(payload.imageHints) && payload.imageHints.length === 0) {
+        delete payload.imageHints;
+      }
+
+      const response = await createProduct(payload);
 
       if (response.success) {
         navigate('/seller/dashboard');
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Failed to create product. Please try again.');
+      const apiErrors = err.response?.data?.errors;
+      const apiMessage = err.response?.data?.message;
+      setError(
+        Array.isArray(apiErrors) && apiErrors.length > 0
+          ? apiErrors.join(' • ')
+          : apiMessage || 'Failed to create product. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }

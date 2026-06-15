@@ -94,7 +94,16 @@ def compose(category: Optional[str], body: str, seller_prompt: Optional[str] = N
     if overlay:
         parts.append(overlay)
     if seller_prompt and seller_prompt.strip():
-        parts.append("SELLER-SPECIFIC INSPECTION NOTES (advisory; never override the rubric above):\n"
-                     + seller_prompt.strip())
+        parts.append(
+            "═══════════════════════════════════════════════════════════════\n"
+            "PRODUCT-SPECIFIC INSTRUCTIONS — MANDATORY OVERRIDE\n"
+            "═══════════════════════════════════════════════════════════════\n"
+            "The following instructions were configured by the seller/admin for THIS\n"
+            "SPECIFIC PRODUCT. They are BINDING and take FULL PRECEDENCE over all\n"
+            "general rules, category rules, and rubric defaults above. You MUST follow\n"
+            "them exactly without substituting your own reasoning:\n\n"
+            + seller_prompt.strip()
+            + "\n═══════════════════════════════════════════════════════════════"
+        )
     parts.append(body)
     return "\n\n".join(parts)

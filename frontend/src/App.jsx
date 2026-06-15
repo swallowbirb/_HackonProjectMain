@@ -31,6 +31,7 @@ import ResaleMarketplacePage from './pages/ResaleMarketplacePage';
 import ResaleListingDetailPage from './pages/ResaleListingDetailPage';
 import LookingForPage from './pages/LookingForPage';
 import DemandMapPage from './pages/admin/DemandMapPage';
+import SyncUserPage from './pages/admin/SyncUserPage';
 
 // ─── Role Guards ────────────────────────────────────────────────────────────
 
@@ -165,6 +166,9 @@ function App() {
               {/* Auth routes */}
               <Route path="/sign-in/*" element={<CustomSignedOut><SignInPage /></CustomSignedOut>} />
               <Route path="/sign-up/*" element={<CustomSignedOut><SignUpPage /></CustomSignedOut>} />
+
+              {/* Force-sync utility — no role guard, works before Mongo doc exists */}
+              <Route path="/admin/sync-user" element={<SyncUserPage />} />
 
               {/* Role selection */}
               <Route path="/role-selection" element={<ProtectedRoute><RoleSelectionPage /></ProtectedRoute>} />

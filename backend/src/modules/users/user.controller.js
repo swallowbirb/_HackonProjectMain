@@ -21,11 +21,32 @@ const syncUser = async (req, res, next) => {
         role = identifier;
       }
     } else {
-      // Fetch full user details from Clerk's SDK
-      const clerkUser = await clerkClient.users.getUser(clerkId);
-      email = clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0 
-        ? clerkUser.emailAddresses[0].emailAddress 
-        : req.body.email;
+      // Fetch full user details from Clerk's SDK. Failures here are the most
+      // common cause of "user never appears in Mongo" — surface them clearly.
+      let clerkUser;
+      try {
+        clerkUser = await clerkClient.users.getUser(clerkId);
+      } catch (err) {
+        console.error('[syncUser] clerkClient.users.getUser failed', {
+          clerkId,
+          message: err?.message,
+          status: err?.status,
+        });
+        return res.status(502).json({
+          success: false,
+          message: 'Failed to load user from Clerk. Check CLERK_SECRET_KEY on the backend.',
+          detail: err?.message,
+        });
+      }
+
+      // Prefer the primary email; fall back to first available; finally body.
+      const primary = clerkUser.emailAddresses?.find(
+        (e) => e.id === clerkUser.primaryEmailAddressId
+      );
+      email =
+        primary?.emailAddress ||
+        clerkUser.emailAddresses?.[0]?.emailAddress ||
+        req.body.email;
       firstName = clerkUser.firstName || req.body.firstName;
       lastName = clerkUser.lastName || req.body.lastName;
       avatarUrl = clerkUser.imageUrl || req.body.avatarUrl;
@@ -41,10 +62,33 @@ const syncUser = async (req, res, next) => {
     };
 
     if (!userData.clerkId || !userData.email) {
-      return res.status(400).json({ success: false, message: 'Missing required user data' });
+      console.error('[syncUser] Missing required user data', { clerkId, email });
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required user data',
+        detail: { hasClerkId: !!userData.clerkId, hasEmail: !!userData.email },
+      });
     }
 
-    const user = await userService.syncUser(userData);
+    let user;
+    try {
+      user = await userService.syncUser(userData);
+    } catch (err) {
+      // Most likely cause: duplicate email from a stale account (unique index).
+      if (err?.code === 11000) {
+        console.error('[syncUser] Duplicate key on user upsert', {
+          clerkId,
+          email,
+          keyValue: err.keyValue,
+        });
+        return res.status(409).json({
+          success: false,
+          message: 'A different account with this email already exists in the database.',
+          detail: err.keyValue,
+        });
+      }
+      throw err;
+    }
 
     res.status(200).json({
       success: true,

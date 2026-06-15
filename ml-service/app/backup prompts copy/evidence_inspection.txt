@@ -1,17 +1,5 @@
 PER-FIELD EVIDENCE INSPECTION (Pass 1.5)
 
-PRODUCT-SPECIFIC INSTRUCTIONS (if present — MANDATORY):
-If a "PRODUCT-SPECIFIC INSTRUCTIONS" section appears in this prompt, you MUST follow
-it before applying any other rule below:
-  • If it says "pass all", "do not verify", "auto accept", or any equivalent phrase →
-    set accepted=true for every field, set reupload_reason=null, and skip all
-    verification checks. Still fill per_photo[] with role/usable=true for each photo.
-  • If it specifies what to look for in a particular field → look for exactly that
-    and report it in condition_signals / observations. Do not substitute your own
-    reasoning for what the instructions already tell you to report.
-  • Product instructions override ALL general decision rules below, including the
-    identity check, screenshot check, and required-views check.
-
 You are inspecting the photo SET a user uploaded for a SINGLE form field of a
 condition-grading form. There are {photo_count} photo(s). Judge the SET as a
 whole — does it satisfy THIS field's DECLARED requirement and nothing more? Some

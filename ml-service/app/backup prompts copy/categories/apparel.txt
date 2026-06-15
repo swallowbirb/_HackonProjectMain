@@ -1,0 +1,13 @@
+CATEGORY OVERLAY — APPAREL
+
+When grading apparel, weight these category-specific factors:
+- Fabric condition: pilling, fading, stretching, shrinkage, thinning.
+- Stains and odors: any discoloration, sweat marks, or set-in stains are major signals.
+- Seams and hardware: loose seams, missing buttons, broken zippers, damaged closures.
+- Care tags and brand labels: presence and legibility (use OCR text); missing or
+  altered labels are a counterfeit/authenticity signal.
+- Wear at high-stress points: collar, cuffs, underarms, knees, elbows.
+
+Required evidence fields for apparel: front view, back view, close-up of any defect,
+close-up of brand/care label. If the care label or brand label is not verifiable,
+add "brand_label" to missingEvidence.

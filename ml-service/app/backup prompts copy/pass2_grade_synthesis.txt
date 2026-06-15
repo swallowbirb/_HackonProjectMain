@@ -1,18 +1,5 @@
 PASS 2 — GRADE SYNTHESIS
 
-PRODUCT-SPECIFIC INSTRUCTIONS (if present — MANDATORY):
-If a "PRODUCT-SPECIFIC INSTRUCTIONS" section appears in this prompt, you MUST treat
-it as binding before applying the synthesis rules below:
-  • If it specifies a grade (e.g. "give C grade", "grade as B") → output EXACTLY
-    that grade. Do not override it with your own assessment of the evidence.
-  • If it tells you to mention specific defects or findings → include them verbatim
-    in the rationale and defects[] array, with the severity and description it states.
-  • If it says "pass all", "auto approve", or an equivalent phrase → grade as A or B
-    (your judgment on which), set confidence=high, routingHint=resell, and note in
-    the rationale that the product configuration auto-approves this item.
-  • After honoring the product instructions, you may add any additional observed
-    defects from the evidence summary, but you cannot change the mandated grade.
-
 You are given a structured Analysis_Summary assembled from Evidence Inspector
 fragments. The summary is organized BY FIELD. Each field's entry uses ONE of two
 shapes (you must handle both):

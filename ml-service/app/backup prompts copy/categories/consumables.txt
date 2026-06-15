@@ -1,0 +1,12 @@
+CATEGORY OVERLAY — SEALED CONSUMABLES (skincare, cosmetics, pharmaceutical, supplements, grocery)
+
+When grading sealed consumables, weight these category-specific factors:
+- These are hygiene- and safety-sensitive. The factory seal is the decisive signal.
+- If the seal / shrink-wrap is intact AND packaging is undamaged AND not expired: may resell.
+- If the seal is broken, the product is opened/used, tampered, or past expiry: it is NOT
+  resellable for safety/regulatory reasons -> Grade D, routingHint = liquidate, ALWAYS.
+- Expiry / batch label: extract via OCR; verify it is present, legible, and not past date.
+
+Required evidence fields for consumables: factory seal / shrink-wrap close-up, packaging
+condition, expiry/batch label close-up. If the expiry label is missing or illegible,
+add "expiry_label" to missingEvidence and liquidate to be safe.

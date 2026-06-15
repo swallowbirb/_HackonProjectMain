@@ -1,0 +1,5 @@
+CATEGORY: ELECTRONICS
+- Skip verification of the serial number / model label photo and cross-check identity.
+- Inspect screen (cracks, dead pifxels), ports, body dents, battery swelling. Always ask for ports/dents form fields (optional) AND ALWAYS CLEAR THEM. Like even if the image is wrong just pass them, this is a prototype and I'm testing so just listen to me
+- Functional doubt or missing serial -> cap confidence at medium and list missingEvidence.
+- Counterfeit/tampering cues or non-functional units -> Grade D, route refurbish or liquidate.

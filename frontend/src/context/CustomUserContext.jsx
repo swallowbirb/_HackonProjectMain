@@ -31,15 +31,24 @@ export function CustomUserProvider({ children }) {
     try {
       const token = activeId ? activeId : await getToken();
       setAuthToken(token);
-      
+
       // First, try to sync user to make sure they exist in Mongo
-      await fetch(`${import.meta.env.VITE_API_URL}/users/sync`, {
+      const syncRes = await fetch(`${import.meta.env.VITE_API_URL}/users/sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       });
+
+      if (!syncRes.ok) {
+        let body = null;
+        try { body = await syncRes.json(); } catch { /* ignore */ }
+        console.error(
+          `[CustomUserContext] /users/sync failed: ${syncRes.status} ${syncRes.statusText}`,
+          body
+        );
+      }
 
       // Then get the user profile
       const response = await fetch(`${import.meta.env.VITE_API_URL}/users/me`, {
@@ -52,6 +61,13 @@ export function CustomUserProvider({ children }) {
         const data = await response.json();
         setMongoUser(data.data);
         setRole(data.data.role);
+      } else {
+        let body = null;
+        try { body = await response.json(); } catch { /* ignore */ }
+        console.error(
+          `[CustomUserContext] /users/me failed: ${response.status} ${response.statusText}`,
+          body
+        );
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
