@@ -119,6 +119,15 @@ const WAREHOUSES = [
   { code: 'JAGDALPUR-01', name: 'Jagdalpur South Point', city: 'Jagdalpur', location: { type: 'Point', coordinates: [82.0290, 19.0748] }, capacity: 180, categories: ['Books', 'Clothing'] },
 ];
 
+// Minimum resale value (₹) for an unsellable item to be liquidated for bulk
+// recovery; below this it's simply donated (not worth the liquidation overhead).
+const LIQUIDATE_FLOOR = 500;
+
+// Demand level (raw nearby-buyer count for the item's tag) at or above which we
+// treat a warehouse as a near-certain sell-through. Demand below this scales the
+// expected resale value down linearly. Drives "best warehouse, not nearest".
+const SELL_THROUGH_REF = 40;
+
 // Default origin used when an item/seller has no location (Item has no geo field).
 const DEFAULT_ORIGIN = { type: 'Point', coordinates: [81.6296, 21.2514] }; // Raipur
 
@@ -139,4 +148,6 @@ module.exports = {
   WAREHOUSE,
   WAREHOUSES,
   DEFAULT_ORIGIN,
+  LIQUIDATE_FLOOR,
+  SELL_THROUGH_REF,
 };

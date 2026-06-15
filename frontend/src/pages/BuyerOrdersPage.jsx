@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getBuyerOrders, cancelOrder, advanceFulfillment } from '../services/order.service';
 import { initiateReturn } from '../services/return.service';
 import { getMyItems } from '../services/item.service';
-import { Package, Loader2, Calendar, CreditCard, ChevronRight, RotateCcw, X, ChevronDown, Activity, ArrowRight, Truck, Banknote, Ban } from 'lucide-react';
+import { Package, Loader2, Calendar, CreditCard, ChevronRight, RotateCcw, X, ChevronDown, Activity, ArrowRight, Truck, Banknote, Ban, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import OrderTrackingSidebar from '../components/shared/OrderTrackingSidebar';
 
 const REASON_OPTIONS = [
   { value: 'defective', label: 'Item is defective or broken' },
@@ -55,6 +56,19 @@ export default function BuyerOrdersPage() {
   // Phase 7.5 — per-order action state (cancel lock + fulfillment advance demo).
   const [actionOrderId, setActionOrderId] = useState(null);   // order currently mutating
   const [orderNotice, setOrderNotice] = useState({});         // { [orderId]: { type, message } }
+
+  // Live order tracking — which order the left sidebar rail is following.
+  const [trackedOrderId, setTrackedOrderId] = useState(null);
+  const trackedOrder = orders.find((o) => o._id === trackedOrderId) || null;
+
+  // Pick a sensible default order to track: the first still-in-flight one.
+  const pickDefaultTracked = (list) => {
+    if (!list || list.length === 0) return null;
+    const inFlight = list.find(
+      (o) => o.status !== 'cancelled' && (o.fulfillmentStatus || 'placed') !== 'delivered'
+    );
+    return (inFlight || list[0])._id;
+  };
 
   const patchOrder = (orderId, fields) =>
     setOrders((prev) => prev.map((o) => (o._id === orderId ? { ...o, ...fields } : o)));
@@ -108,7 +122,10 @@ export default function BuyerOrdersPage() {
           getBuyerOrders(1, 50),
           getMyItems(),
         ]);
-        if (ordersRes.success) setOrders(ordersRes.data.orders);
+        if (ordersRes.success) {
+          setOrders(ordersRes.data.orders);
+          setTrackedOrderId((cur) => cur || pickDefaultTracked(ordersRes.data.orders));
+        }
         if (itemsRes.success) setMyItems(itemsRes.data);
       } catch (err) {
         console.error('Failed to fetch data:', err);
@@ -168,7 +185,21 @@ export default function BuyerOrdersPage() {
 
   return (
     <>
-      <div className="max-w-5xl mx-auto px-4 py-8 font-sans">
+      <div className="max-w-6xl mx-auto px-4 py-8 font-sans flex gap-6 items-start">
+
+        {/* ── Live tracking rail (sticky, left) ── */}
+        <aside className="hidden lg:block w-72 flex-shrink-0">
+          <div className="sticky top-24">
+            <OrderTrackingSidebar
+              order={trackedOrder}
+              advancing={trackedOrder ? actionOrderId === trackedOrder._id : false}
+              onAdvance={trackedOrder ? () => handleAdvanceFulfillment(trackedOrder) : undefined}
+            />
+          </div>
+        </aside>
+
+        {/* ── Main column ── */}
+        <div className="flex-1 min-w-0">
 
         {/* Header + Tabs */}
         <div className="mb-6">
@@ -235,7 +266,15 @@ export default function BuyerOrdersPage() {
                 const sellerName = order.sellerId?.storeName || `${order.sellerId?.firstName} ${order.sellerId?.lastName}`.trim();
 
                 return (
-                  <div key={order._id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                  <div
+                    key={order._id}
+                    onClick={() => setTrackedOrderId(order._id)}
+                    className={`bg-white rounded-2xl border overflow-hidden shadow-sm cursor-pointer transition-all ${
+                      trackedOrderId === order._id
+                        ? 'border-[#FF9900] ring-2 ring-[#FF9900]/30'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
                     <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex flex-wrap gap-6 items-center justify-between text-sm">
                       <div className="flex gap-6">
                         <div>
@@ -273,6 +312,11 @@ export default function BuyerOrdersPage() {
                             {order.festivePolicy?.festive && (
                               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
                                 Festive order
+                              </span>
+                            )}
+                            {trackedOrderId === order._id && (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FF9900]/10 text-[#B66A00] inline-flex items-center gap-1">
+                                <MapPin className="w-3 h-3" /> Tracking
                               </span>
                             )}
                           </div>
@@ -451,6 +495,7 @@ export default function BuyerOrdersPage() {
             </div>
           )
         )}
+        </div>
       </div>
 
       {/* Return Modal */}

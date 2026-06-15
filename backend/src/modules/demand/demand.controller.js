@@ -73,6 +73,59 @@ const getDemandMap = async (req, res, next) => {
   }
 };
 
+// GET /api/demand/peer-buyers?term=shoe — peer buyers ready now per warehouse
+const getPeerBuyerMap = async (req, res, next) => {
+  try {
+    const term = req.query.term || '';
+    const data = await demandService.peerBuyersByWarehouse(term);
+    res.json({ success: true, data: { term, warehouses: data } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/demand/populator — current per-tag population config (+ defaults)
+const getPopulatorConfig = async (req, res, next) => {
+  try {
+    const data = await demandService.getPopulatorConfig();
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/demand/populator — replace the per-tag population ("Generate and Replace")
+const savePopulatorConfig = async (req, res, next) => {
+  try {
+    const data = await demandService.savePopulatorConfig(req.body || {});
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/demand/populator/tags — create a custom tag
+const addPopulatorTag = async (req, res, next) => {
+  try {
+    const data = await demandService.addPopulatorTag(req.body?.tag);
+    res.json({ success: true, data });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ success: false, message: error.message });
+    next(error);
+  }
+};
+
+// DELETE /api/demand/populator/tags/:tag — remove a custom tag
+const removePopulatorTag = async (req, res, next) => {
+  try {
+    const data = await demandService.removePopulatorTag(req.params.tag);
+    res.json({ success: true, data });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ success: false, message: error.message });
+    next(error);
+  }
+};
+
 // GET /api/demand/warehouses — list demo warehouses
 const getWarehouses = async (req, res, next) => {
   try {
@@ -83,4 +136,16 @@ const getWarehouses = async (req, res, next) => {
   }
 };
 
-module.exports = { createWant, getWantsByUser, deleteWant, matchDemand, getDemandMap, getWarehouses };
+module.exports = {
+  createWant,
+  getWantsByUser,
+  deleteWant,
+  matchDemand,
+  getDemandMap,
+  getPeerBuyerMap,
+  getPopulatorConfig,
+  savePopulatorConfig,
+  addPopulatorTag,
+  removePopulatorTag,
+  getWarehouses,
+};

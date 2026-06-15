@@ -377,13 +377,22 @@ const SellerDashboard = () => {
             </h1>
             <p className="text-gray-500 mt-1 text-sm">Manage your listings and brand authorizations.</p>
           </div>
-          <button
-            onClick={() => setShowListingModal(true)}
-            className="flex items-center gap-2 bg-[#FF9900] hover:bg-[#FFB347] text-black px-5 py-2.5 rounded-full font-medium transition-colors shadow-sm"
-          >
-            <PlusCircle className="w-5 h-5" />
-            New Listing
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/reseller/dashboard')}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-full font-medium transition-colors shadow-sm"
+            >
+              <Recycle className="w-5 h-5" />
+              Reseller Dashboard
+            </button>
+            <button
+              onClick={() => setShowListingModal(true)}
+              className="flex items-center gap-2 bg-[#FF9900] hover:bg-[#FFB347] text-black px-5 py-2.5 rounded-full font-medium transition-colors shadow-sm"
+            >
+              <PlusCircle className="w-5 h-5" />
+              New Listing
+            </button>
+          </div>
         </motion.div>
 
         {/* Suspension Notice */}

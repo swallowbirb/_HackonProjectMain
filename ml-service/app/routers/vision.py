@@ -40,6 +40,12 @@ async def inspect_evidence_field(request: FieldInspectionRequest):
         seller_prompt=request.seller_prompt,
         base_prompt=request.base_prompt,
         category_prompt=request.category_prompt,
+        aspects=request.aspects,
+        required_views=request.required_views,
+        sibling_fields=request.sibling_fields,
+        montage=request.montage,
+        montage_template=request.montage_template,
+        inspection_template=request.inspection_template,
         trace=trace,
     )
     return FieldInspectionResponse(

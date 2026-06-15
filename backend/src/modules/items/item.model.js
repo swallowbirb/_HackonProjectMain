@@ -73,6 +73,14 @@ const itemSchema = new mongoose.Schema(
       source: { type: String, default: null },   // ai | cache | generic_default | cache_degraded
       provider: { type: String, default: null }, // e.g. gemini
       generatedAt: { type: Date, default: null },
+
+      // Dynamic-stepper — per-field verification bookkeeping (improvement: 2-attempt
+      // passthrough + importance gating). Keyed by fieldId:
+      //   { [fieldId]: { verifyAttempts: Number, status: 'staged'|'verified'|'unverified',
+      //                  highestImportance: 'minor'|'standard'|'critical' } }
+      // Mixed so the per-field shape can evolve without a migration; absent on
+      // legacy documents, which keep working unchanged.
+      fieldState: { type: mongoose.Schema.Types.Mixed, default: {} },
     },
 
     // v3.44 — which uploaded photo answers which named form field (improvement #3).
@@ -116,11 +124,33 @@ const itemSchema = new mongoose.Schema(
           preflight: { type: mongoose.Schema.Types.Mixed, default: {} },
           inspectorModel: { type: String, default: null },
           inspectorStatus: { type: String, default: null },
+          // Dynamic-stepper — optional structured-aspect context carried from the
+          // field-level inspection. All optional so legacy v2.34/v2.35 fragments
+          // remain valid:
+          //   • aspects     — the field's declared aspects checked during inspection
+          //   • captureMode — 'photo' | 'video' | 'text' for this field
+          //   • liveness    — non-LLM video continuity/anti-fraud signals
+          aspects: { type: mongoose.Schema.Types.Mixed, default: undefined },
+          captureMode: { type: String, default: undefined },
+          liveness: { type: mongoose.Schema.Types.Mixed, default: undefined },
           createdAt: { type: Date, default: Date.now },
         },
       ],
       default: [],
     },
+
+    // Dynamic-stepper — human-review routing. When a critical aspect stays
+    // unverified after the 2-attempt passthrough, or a material claim is
+    // unverifiable, the item is flagged so the routing brain takes the
+    // hold-for-inspection path. Additive: false/[] on legacy documents.
+    needsHumanReview: { type: Boolean, default: false },
+    humanReviewReasons: { type: [String], default: [] }, // e.g. ['unverifiable:ssd', 'unverified_critical:tags']
+
+    // Dynamic-stepper — per-field video evidence. Keyed by fieldId:
+    //   { [fieldId]: { liveness, selectedFrameUrls } }
+    // Mixed so the per-field shape can evolve without a migration; absent on
+    // legacy documents.
+    videoEvidence: { type: mongoose.Schema.Types.Mixed, default: {} },
 
     // State machine
     status: {

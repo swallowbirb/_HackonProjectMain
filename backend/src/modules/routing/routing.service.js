@@ -49,6 +49,57 @@ const safeDemandByWarehouse = async (term) => {
   }
 };
 
+/** Per-warehouse peer-buyer rows (populator-driven). Degrades to []. */
+const safePeerBuyers = async (term) => {
+  try {
+    if (typeof demandService.peerBuyersByWarehouse !== 'function') return [];
+    return await demandService.peerBuyersByWarehouse(term);
+  } catch (err) {
+    console.warn(`[routing] safePeerBuyers failed: ${err.message}`);
+    return [];
+  }
+};
+
+/**
+ * Map an item to one of the demand populator's canonical search tags so routing
+ * reads the SAME demand numbers the admin map/populator shows. Falls back to the
+ * item category (which `demandByWarehouse` resolves via the live geo signal).
+ */
+const TERM_RULES = [
+  [/shoe|sneaker|pegasus|running|footwear|adidas|nike/i, 'shoe'],
+  [/headphone|earbud|earphone|wh-1000|airpod|audio|speaker/i, 'headphones'],
+  [/chair|stool|seat|sofa/i, 'office chair'],
+  [/laptop|macbook|notebook|tablet|\btab\b|ipad/i, 'laptop'],
+  [/phone|galaxy|iphone|pixel|oppo|vivo|redmi|reno|smartphone/i, 'smartphone'],
+  [/wash|washer|dryer/i, 'washing machine'],
+  [/jacket|coat|hoodie|sweater|shirt/i, 'jacket'],
+  [/book|textbook|novel/i, 'textbook'],
+];
+const resolveDemandTerm = (category, productTitle) => {
+  const hay = `${productTitle || ''} ${category || ''}`;
+  for (const [re, term] of TERM_RULES) if (re.test(hay)) return term;
+  return String(category || '').toLowerCase();
+};
+
+/**
+ * Confirmed nearby peer buyers for the customer's locality: the populator's peer
+ * count for this item's tag at the warehouse nearest the customer. Zeroing peers
+ * in the populator therefore zeroes peer handoffs in routing.
+ */
+const peerBuyersNearCustomer = (peerRows, sellerLoc) => {
+  if (!Array.isArray(peerRows) || peerRows.length === 0 || !sellerLoc?.coordinates) return 0;
+  const { haversine } = require('./routing.scoring');
+  let nearest = null;
+  let best = Infinity;
+  for (const row of peerRows) {
+    const coords = row.warehouse?.location?.coordinates;
+    if (!coords) continue;
+    const d = haversine(sellerLoc.coordinates, coords);
+    if (d < best) { best = d; nearest = row; }
+  }
+  return nearest ? Number(nearest.raw) || 0 : 0;
+};
+
 /** Hand off to Phase B. No-ops gracefully if resale module isn't available. */
 const safeCreateResaleDraft = async (itemId, routingDecision, grade) => {
   try {
@@ -148,23 +199,31 @@ const computeRoutingDecision = async (itemId, opts = {}) => {
   // Tags + demand.
   const itemForTags = { ...item, __productTitle: productTitle };
   const tags = demandService.generateTags(itemForTags, grade);
-  const demand = await safeMatchDemand(category, tags, sellerLoc, undefined);
-  await ItemLogger.log(itemId, 'ROUTING_DEMAND', `📍 ${demand.count} nearby buyer(s) within ${demand.radiusKm} km — tags: ${tags.join(', ') || 'none'}`, { count: demand.count, radiusKm: demand.radiusKm, tags });
 
-  // Inbound cost to the nearest reasonable warehouse (for refund-timing threshold).
-  // We use the best-warehouse inbound once chosen; for the decision we estimate with default origin.
-  const demandMap = await safeDemandByWarehouse(category);
+  // Resolve the demand-populator tag for this item so routing reads the SAME
+  // numbers the admin map/populator drives.
+  const term = resolveDemandTerm(category, productTitle);
+
+  // Peer buyers near the customer (populator-driven). ≥1 → direct handoff.
+  const peerRows = await safePeerBuyers(term);
+  const peerCount = peerBuyersNearCustomer(peerRows, sellerLoc);
+
+  // Per-warehouse demand for this item's tag (populator-driven) → best warehouse.
+  const demandMap = await safeDemandByWarehouse(term);
   const warehousePick = chooseWarehouse({ sellerLoc, category, weightKg, resaleValue, demandByWarehouse: demandMap });
   const inboundCost = warehousePick?.breakdown?.inbound ?? reverseLogisticsCost({ origin: sellerLoc, destination: DEFAULT_ORIGIN, category });
 
-  // Decide.
+  await ItemLogger.log(itemId, 'ROUTING_DEMAND', `📍 "${term}": ${peerCount} peer buyer(s) near customer; best warehouse recovery ₹${warehousePick?.score ?? '—'} (demand ${warehousePick?.breakdown?.demand ?? 0}).`, { term, peerCount, bestWarehouse: warehousePick?.warehouseCode, bestRecovery: warehousePick?.score, tags });
+
+  // Decide (pure decision tree).
   const decision = decide({
     grade,
     resaleValue,
-    demandCount: demand.count,
-    inboundCost,
     category,
     trust,
+    peerCount,
+    warehouse: warehousePick,
+    inboundCost,
     counterfeit: !!opts.counterfeit || grade?.evidenceBundle?.fraud?.classification === 'hard_fraud',
     hazardous: !!opts.hazardous,
   });
@@ -178,17 +237,20 @@ const computeRoutingDecision = async (itemId, opts = {}) => {
   let matchWindow = { active: false, hours: null, expiresAt: null };
 
   if (RESALE_CLASS.has(decision.chosenPath)) {
-    if (decision.chosenPath === 'peer-redistribute' && demand.count > 0) {
+    if (decision.chosenPath === 'peer-redistribute') {
       const hours = matchWindowHours(category);
       matchWindow = { active: true, hours, expiresAt: new Date(Date.now() + hours * 3600 * 1000) };
-      await ItemLogger.log(itemId, 'ROUTING_WAREHOUSE', `🤝 Peer handoff — holding at home ${hours}h for ${demand.count} nearby buyer(s); no warehouse leg.`, { hours, demandCount: demand.count });
-    } else if (warehousePick) {
-      const wh = warehousePick.warehouse;
-      chosenWarehouse = {
-        code: wh.code, name: wh.name, city: wh.city,
-        score: warehousePick.score, breakdown: warehousePick.breakdown,
-      };
-      await ItemLogger.log(itemId, 'ROUTING_WAREHOUSE', `🏭 Best warehouse: ${wh.name} (${wh.city}) — score ${warehousePick.score}, inbound ₹${warehousePick.breakdown.inbound}, demand ${warehousePick.breakdown.demand}.`, { chosenWarehouse });
+      await ItemLogger.log(itemId, 'ROUTING_WAREHOUSE', `🤝 Peer handoff — holding at home ${hours}h for ${peerCount} nearby buyer(s); no warehouse leg.`, { hours, peerCount });
+    } else {
+      // resell / refurbish → ship to the best (most-profitable) warehouse.
+      if (warehousePick) {
+        const wh = warehousePick.warehouse;
+        chosenWarehouse = {
+          code: wh.code, name: wh.name, city: wh.city,
+          score: warehousePick.score, breakdown: warehousePick.breakdown,
+        };
+        await ItemLogger.log(itemId, 'ROUTING_WAREHOUSE', `🏭 Best warehouse: ${wh.name} (${wh.city}) — expected recovery ₹${warehousePick.score}, inbound ₹${warehousePick.breakdown.inbound}, demand ${warehousePick.breakdown.demand}.`, { chosenWarehouse });
+      }
     }
   }
 

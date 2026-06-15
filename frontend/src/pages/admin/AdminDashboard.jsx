@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Package, Users, AlertTriangle, CheckCircle, Clock,
   XCircle, Ban, Pause, Play, Search, ChevronLeft, ChevronRight,
-  RefreshCw, TrendingUp, Eye, ChevronDown, ChevronUp, Sparkles, Zap, ZapOff
+  RefreshCw, TrendingUp, Eye, ChevronDown, ChevronUp, Sparkles, Zap, ZapOff,
+  Maximize2, X, Plus, Trash2
 } from 'lucide-react';
 import {
   getStats,
@@ -17,7 +18,7 @@ import {
   moderateReview,
 } from '../../services/admin.service';
 import { getFestiveCalendar, setFestiveOverride } from '../../services/festive.service';
-import { listPrompts, savePrompt, resetPrompt } from '../../services/prompt.service';
+import { listPrompts, savePrompt, resetPrompt, createCategoryPrompt, deleteCategoryPrompt } from '../../services/prompt.service';
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 
@@ -956,14 +957,215 @@ const FestiveTab = () => {
 
 // ─── Prompts Tab (AI Grader fine-tuning) ──────────────────────────────────────
 
+const TEMPLATE_DESCRIPTIONS = {
+  pass1_form: 'Form generation — Pass 1 (dynamic schema + aspects)',
+  pass2_synthesis: 'Grade synthesis — Pass 2 (condition grade + routing hint)',
+  evidence_inspection: 'Field inspection — checks each photo set against declared aspects',
+  montage: 'Montage overview — low-res contact-sheet triage call',
+};
+
+const promptKeyOf = (p) => `${p.scope}:${p.key}`;
+
+const PromptCard = ({ p, drafts, setDrafts, savingKey, savedKey, onSave, onReset, onDelete }) => {
+  const [expanded, setExpanded] = useState(false);
+  const k = promptKeyOf(p);
+  const dirty = (drafts[k] ?? '') !== (p.content ?? '');
+  const isCustomCategory = p.scope === 'category' && !p.builtin;
+  const desc =
+    p.scope === 'base' ? 'Applies to every grading call' :
+    p.scope === 'template' ? (TEMPLATE_DESCRIPTIONS[p.key] || `ML prompt template: ${p.key}`) :
+    isCustomCategory ? `Custom category · matches products in “${p.key}”` :
+    `Category bundle: ${p.key}`;
+
+  const Buttons = () => (
+    <div className="flex items-center gap-2 flex-shrink-0">
+      {savedKey === k && <span className="text-xs text-emerald-400">Saved</span>}
+      {isCustomCategory ? (
+        <button
+          onClick={() => onDelete(p)}
+          disabled={savingKey === k}
+          title="Delete this custom category"
+          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-40 inline-flex items-center gap-1.5"
+        >
+          <Trash2 className="w-3.5 h-3.5" /> Delete
+        </button>
+      ) : (
+        <button
+          onClick={() => onReset(p)}
+          disabled={savingKey === k}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40"
+        >
+          Reset to default
+        </button>
+      )}
+      <button
+        onClick={() => onSave(p)}
+        disabled={savingKey === k || !dirty}
+        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500/30 disabled:opacity-40"
+      >
+        {savingKey === k ? 'Saving…' : dirty ? 'Save' : 'Saved'}
+      </button>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-zinc-100">{p.label || `${p.scope}:${p.key}`}</p>
+            <p className="text-xs text-zinc-500">
+              {desc}
+              {p.version ? ` · v${p.version}` : ' · default (unsaved)'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setExpanded(true)}
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+              title="Expand editor"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+            <Buttons />
+          </div>
+        </div>
+        <textarea
+          value={drafts[k] ?? ''}
+          onChange={(e) => setDrafts((prev) => ({ ...prev, [k]: e.target.value }))}
+          rows={p.scope === 'base' ? 16 : 10}
+          spellCheck={false}
+          className="w-full bg-black/40 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono leading-relaxed outline-none focus:border-violet-500/40 resize-y"
+        />
+      </div>
+
+      {expanded && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col w-full max-w-5xl h-full max-h-[90vh]">
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-zinc-800 flex-shrink-0">
+              <div>
+                <p className="font-semibold text-zinc-100">{p.label || `${p.scope}:${p.key}`}</p>
+                <p className="text-xs text-zinc-500">{desc}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Buttons />
+                <button
+                  onClick={() => setExpanded(false)}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 ml-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={drafts[k] ?? ''}
+              onChange={(e) => setDrafts((prev) => ({ ...prev, [k]: e.target.value }))}
+              spellCheck={false}
+              autoFocus
+              className="flex-1 bg-transparent px-6 py-4 text-xs text-zinc-200 font-mono leading-relaxed outline-none resize-none"
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+// Mirrors the backend slug rule so the UI can preview the resulting key + catch dupes.
+const slugifyCategory = (name) =>
+  String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+const AddCategoryCard = ({ existingKeys, onCreate }) => {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [content, setContent] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const slug = slugifyCategory(name);
+  const duplicate = slug && existingKeys.includes(slug);
+  const canSave = slug && content.trim() && !duplicate && !saving;
+
+  const reset = () => { setName(''); setContent(''); setError(''); setOpen(false); };
+
+  const submit = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setError('');
+    try {
+      await onCreate({ name, content });
+      reset();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to create category.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-4 w-full rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/50 text-zinc-400 hover:text-violet-300 py-3 text-sm font-medium inline-flex items-center justify-center gap-2 transition-colors"
+      >
+        <Plus className="w-4 h-4" /> Add category
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-4 bg-zinc-900 border border-violet-500/30 rounded-2xl p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="font-semibold text-zinc-100">New category overlay</p>
+        <button onClick={reset} className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Category name (e.g. Jewelry, Home & Garden)"
+          className="w-full bg-black/40 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-200 outline-none focus:border-violet-500/40"
+        />
+        <p className="text-xs text-zinc-500 mt-1">
+          {slug
+            ? <>File: <span className="text-zinc-300 font-mono">categories/{slug}.txt</span> · applies to products whose category resolves to “{slug}”.</>
+            : 'Used to name the overlay file and match products by category.'}
+          {duplicate && <span className="text-amber-400"> — a category with this key already exists.</span>}
+        </p>
+      </div>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        rows={8}
+        spellCheck={false}
+        placeholder={'CATEGORY OVERLAY — …\n\nWhen grading …, weight these category-specific factors:\n- …'}
+        className="w-full bg-black/40 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono leading-relaxed outline-none focus:border-violet-500/40 resize-y"
+      />
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={reset} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+          Cancel
+        </button>
+        <button
+          onClick={submit}
+          disabled={!canSave}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500/30 disabled:opacity-40"
+        >
+          {saving ? 'Creating…' : 'Create category'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const PromptsTab = () => {
   const [prompts, setPrompts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [drafts, setDrafts] = useState({});      // key -> content
+  const [drafts, setDrafts] = useState({});
   const [savingKey, setSavingKey] = useState(null);
   const [savedKey, setSavedKey] = useState(null);
-
-  const keyOf = (p) => `${p.scope}:${p.key}`;
 
   const fetchPrompts = useCallback(async () => {
     setIsLoading(true);
@@ -982,7 +1184,7 @@ const PromptsTab = () => {
   useEffect(() => { fetchPrompts(); }, [fetchPrompts]);
 
   const handleSave = async (p) => {
-    const k = keyOf(p);
+    const k = promptKeyOf(p);
     setSavingKey(k);
     try {
       await savePrompt({ scope: p.scope, key: p.key, content: drafts[k], label: p.label });
@@ -997,7 +1199,7 @@ const PromptsTab = () => {
   };
 
   const handleReset = async (p) => {
-    const k = keyOf(p);
+    const k = promptKeyOf(p);
     setSavingKey(k);
     try {
       const res = await resetPrompt({ scope: p.scope, key: p.key });
@@ -1011,6 +1213,27 @@ const PromptsTab = () => {
     }
   };
 
+  const handleDelete = async (p) => {
+    if (!window.confirm(`Delete the “${p.label || p.key}” category? Its overlay file will be removed.`)) return;
+    const k = promptKeyOf(p);
+    setSavingKey(k);
+    try {
+      await deleteCategoryPrompt({ key: p.key });
+      await fetchPrompts();
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+      window.alert(err?.response?.data?.message || 'Failed to delete category.');
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const handleCreateCategory = async ({ name, content }) => {
+    const res = await createCategoryPrompt({ name, content });
+    await fetchPrompts();
+    return res?.data?.key;
+  };
+
   if (isLoading) {
     return (
       <div className="p-12 text-center text-zinc-500 flex flex-col items-center gap-3">
@@ -1022,72 +1245,50 @@ const PromptsTab = () => {
 
   const base = prompts.filter((p) => p.scope === 'base');
   const categories = prompts.filter((p) => p.scope === 'category');
+  const templates = prompts.filter((p) => p.scope === 'template');
 
-  const PromptCard = ({ p }) => {
-    const k = keyOf(p);
-    const dirty = (drafts[k] ?? '') !== (p.content ?? '');
-    return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-zinc-100">{p.label || `${p.scope}:${p.key}`}</p>
-            <p className="text-xs text-zinc-500">
-              {p.scope === 'base' ? 'Applies to every grading call' : `Category bundle: ${p.key}`}
-              {p.version ? ` · v${p.version}` : ' · default (unsaved)'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {savedKey === k && <span className="text-xs text-emerald-400">Saved</span>}
-            <button
-              onClick={() => handleReset(p)}
-              disabled={savingKey === k}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40"
-            >
-              Reset to default
-            </button>
-            <button
-              onClick={() => handleSave(p)}
-              disabled={savingKey === k || !dirty}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500/30 disabled:opacity-40"
-            >
-              {savingKey === k ? 'Saving…' : dirty ? 'Save' : 'Saved'}
-            </button>
-          </div>
-        </div>
-        <textarea
-          value={drafts[k] ?? ''}
-          onChange={(e) => setDrafts((prev) => ({ ...prev, [k]: e.target.value }))}
-          rows={p.scope === 'base' ? 16 : 8}
-          spellCheck={false}
-          className="w-full bg-black/40 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 font-mono leading-relaxed outline-none focus:border-violet-500/40 resize-y"
-        />
-      </div>
-    );
-  };
+  const cardProps = { drafts, setDrafts, savingKey, savedKey, onSave: handleSave, onReset: handleReset, onDelete: handleDelete };
 
   return (
     <div className="space-y-5">
       <div className="bg-violet-500/5 border border-violet-500/20 rounded-2xl p-4">
-        <p className="text-sm font-semibold text-violet-300 mb-1">AI Grader Prompt Tuning</p>
+        <p className="text-sm font-semibold text-violet-300 mb-1">AI Grader Prompt Console</p>
         <p className="text-xs text-zinc-400 leading-relaxed">
-          Prompts compose in order: <span className="text-zinc-300">Base → Category → Seller (per-product)</span>.
-          The base prompt forces image verification before any condition analysis. Category prompts
-          bundle similar categories (e.g. skincare, pharma and supplements share one "sealed
-          consumables → liquidate" rule). Sellers add per-product instructions from their dashboard.
+          Grading prompts compose in order: <span className="text-zinc-300">Base → Category → Seller (per-product)</span>.
+          Template prompts are used verbatim by the ML service for form generation, grade synthesis,
+          evidence inspection, and montage triage — overriding the bundled defaults when set.
         </p>
       </div>
 
       <div>
         <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-2">Base Prompt</p>
-        <div className="space-y-4">{base.map((p) => <PromptCard key={keyOf(p)} p={p} />)}</div>
+        <div className="space-y-4">{base.map((p) => <PromptCard key={promptKeyOf(p)} p={p} {...cardProps} />)}</div>
       </div>
 
       <div>
         <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-2">Category Prompts</p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {categories.map((p) => <PromptCard key={keyOf(p)} p={p} />)}
+          {categories.map((p) => <PromptCard key={promptKeyOf(p)} p={p} {...cardProps} />)}
         </div>
+        <AddCategoryCard
+          existingKeys={categories.map((p) => p.key)}
+          onCreate={handleCreateCategory}
+        />
       </div>
+
+      {templates.length > 0 && (
+        <div>
+          <p className="text-xs uppercase tracking-wider text-zinc-500 font-medium mb-2">ML Prompt Templates</p>
+          <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3 mb-3">
+            <p className="text-[11px] text-amber-300/80">
+              These templates override the bundled prompt files in the ML service. Leave a template blank to use the bundled default. Changes take effect on the next grading call — no restart required.
+            </p>
+          </div>
+          <div className="space-y-4">
+            {templates.map((p) => <PromptCard key={promptKeyOf(p)} p={p} {...cardProps} />)}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1099,7 +1300,7 @@ const TABS = [
   { id: 'sellers', label: 'Sellers', icon: Users },
   { id: 'reviews', label: 'Reviews', icon: Eye },
   { id: 'festive', label: 'Festive Mode', icon: Sparkles },
-  { id: 'prompts', label: 'AI Prompts', icon: Sparkles },
+  { id: 'prompts', label: 'Prompt Console', icon: Zap },
 ];
 
 const AdminDashboard = () => {
@@ -1187,7 +1388,7 @@ const AdminDashboard = () => {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
           >
-            {activeTab === 'products' ? <ProductsTab /> : activeTab === 'sellers' ? <SellersTab /> : activeTab === 'reviews' ? <ReviewsTab /> : <FestiveTab />}
+            {activeTab === 'products' ? <ProductsTab /> : activeTab === 'sellers' ? <SellersTab /> : activeTab === 'reviews' ? <ReviewsTab /> : activeTab === 'prompts' ? <PromptsTab /> : <FestiveTab />}
           </motion.div>
         </AnimatePresence>
       </div>

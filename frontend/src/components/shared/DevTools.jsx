@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useCustomUser } from '../../context/CustomUserContext';
-import { Terminal, Shield, User, ShoppingBag, LogOut, Settings, Trash2, Download, Database, RotateCcw } from 'lucide-react';
+import { Terminal, Shield, User, ShoppingBag, LogOut, Settings, Trash2, Download, Database, RotateCcw, Zap, CheckCircle2, XCircle, Loader2, Wand2, FastForward } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { eraseAllData, populateFakeStore, downloadDatabaseSnapshot, resetReturnData } from '../../services/dev.service';
+import { eraseAllData, populateFakeStore, downloadDatabaseSnapshot, resetReturnData, pingGemini, manualGrade } from '../../services/dev.service';
 
 export default function DevTools() {
   const isDev = process.env.NODE_ENV !== 'production' || import.meta.env?.DEV;
@@ -12,6 +12,45 @@ export default function DevTools() {
   const [isOpen, setIsOpen] = useState(false);
   const [customId, setCustomId] = useState('');
   const [isProcessingData, setIsProcessingData] = useState(false);
+  const [geminiPinging, setGeminiPinging] = useState(false);
+  const [geminiResult, setGeminiResult] = useState(null);
+
+  // --- Manual grade override (skip AI grading → routing) ---
+  // The evidence/status pages live at /items/:itemId/(evidence|status). DevTools
+  // renders outside the Router, so we read the active itemId straight from the URL.
+  const itemIdFromUrl = (() => {
+    const m = (typeof window !== 'undefined' ? window.location.pathname : '').match(/\/items\/([a-f\d]{24})/i);
+    return m ? m[1] : null;
+  })();
+  const [manualGradeLetter, setManualGradeLetter] = useState('B');
+  const [manualReason, setManualReason] = useState('');
+  const [gradingManually, setGradingManually] = useState(false);
+  const [manualGradeResult, setManualGradeResult] = useState(null);
+
+  const handleManualGrade = async () => {
+    if (!itemIdFromUrl) return;
+    setGradingManually(true);
+    setManualGradeResult(null);
+    const result = await manualGrade(itemIdFromUrl, {
+      grade: manualGradeLetter,
+      rationale: manualReason.trim() || undefined,
+      route: true,
+    });
+    setManualGradeResult(result);
+    setGradingManually(false);
+    if (result?.success) {
+      // Jump to the status page so the routing decision is visible immediately.
+      setTimeout(() => { window.location.href = `/items/${itemIdFromUrl}/status`; }, 900);
+    }
+  };
+
+  const handlePingGemini = async () => {
+    setGeminiPinging(true);
+    setGeminiResult(null);
+    const result = await pingGemini();
+    setGeminiResult(result);
+    setGeminiPinging(false);
+  };
 
   const handleMockLogin = (id) => {
     localStorage.setItem('mock_clerk_id', id);
@@ -219,6 +258,140 @@ export default function DevTools() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Skip AI Grading — manually assign a grade + reason, then route.
+                Only available while on an item's evidence/status page. */}
+            <div className="space-y-2">
+              <span className="text-[11px] text-zinc-500 font-medium tracking-wider uppercase block">Skip AI Grading</span>
+              {itemIdFromUrl ? (
+                <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-3 space-y-3">
+                  <div className="text-[11px] text-zinc-400">
+                    Item: <span className="font-mono text-zinc-300">{itemIdFromUrl.slice(-8)}</span>
+                    <span className="ml-1 text-zinc-600">— bypass the ML pipeline, assign a grade, and jump to routing.</span>
+                  </div>
+
+                  {/* Grade picker */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Grade</span>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['A', 'B', 'C', 'D'].map((g) => (
+                        <button
+                          key={g}
+                          onClick={() => setManualGradeLetter(g)}
+                          className={`p-2 rounded-xl text-sm font-bold border transition-all cursor-pointer ${
+                            manualGradeLetter === g
+                              ? 'bg-teal-500 text-black border-teal-400'
+                              : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700'
+                          }`}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Reason */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Reason (optional)</span>
+                    <textarea
+                      rows={2}
+                      value={manualReason}
+                      onChange={(e) => setManualReason(e.target.value)}
+                      placeholder="e.g. Minor scuff on sole, otherwise like new."
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-700 resize-none"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleManualGrade}
+                    disabled={gradingManually}
+                    className="w-full flex items-center justify-center gap-1.5 bg-teal-950/40 hover:bg-teal-900/30 border border-teal-900/40 hover:border-teal-900/60 p-2.5 rounded-xl text-xs font-semibold text-teal-300 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {gradingManually ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FastForward className="w-3.5 h-3.5" />}
+                    <span>{gradingManually ? 'Grading & routing…' : `Assign Grade ${manualGradeLetter} & Route`}</span>
+                  </button>
+
+                  {manualGradeResult && (
+                    <div
+                      className={`rounded-xl border p-2.5 text-[11px] space-y-1 ${
+                        manualGradeResult.success
+                          ? 'bg-emerald-950/30 border-emerald-900/50 text-emerald-200'
+                          : 'bg-red-950/30 border-red-900/50 text-red-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        {manualGradeResult.success ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <XCircle className="w-3.5 h-3.5 text-red-400" />
+                        )}
+                        <span>{manualGradeResult.message || (manualGradeResult.success ? 'Done' : 'Failed')}</span>
+                      </div>
+                      {manualGradeResult.success && manualGradeResult.routing?.chosenPath && (
+                        <div className="text-zinc-400">
+                          Routed to: <span className="font-mono text-zinc-200 uppercase">{manualGradeResult.routing.chosenPath}</span>
+                        </div>
+                      )}
+                      {manualGradeResult.success && (
+                        <div className="text-zinc-500">Opening status page…</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-2xl p-3 text-[11px] text-zinc-500 flex items-center gap-2">
+                  <Wand2 className="w-3.5 h-3.5 text-zinc-600" />
+                  <span>Open an item's <span className="text-zinc-400">evidence</span> or <span className="text-zinc-400">status</span> page to skip grading.</span>
+                </div>
+              )}
+            </div>
+
+            {/* LLM Health — quick Gemini connectivity / quota check */}
+            <div className="space-y-2">
+              <span className="text-[11px] text-zinc-500 font-medium tracking-wider uppercase block">LLM Health</span>
+              <button
+                onClick={handlePingGemini}
+                disabled={geminiPinging}
+                className="w-full flex items-center justify-center gap-1.5 bg-violet-950/40 hover:bg-violet-900/30 border border-violet-900/40 hover:border-violet-900/60 p-2.5 rounded-xl text-xs font-semibold text-violet-300 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {geminiPinging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                <span>{geminiPinging ? 'Pinging Gemini…' : 'Test Gemini API'}</span>
+              </button>
+
+              {geminiResult && (
+                <div
+                  className={`rounded-xl border p-2.5 text-[11px] space-y-1 ${
+                    geminiResult.ok
+                      ? 'bg-emerald-950/30 border-emerald-900/50 text-emerald-200'
+                      : 'bg-red-950/30 border-red-900/50 text-red-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    {geminiResult.ok ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-red-400" />
+                    )}
+                    <span>{geminiResult.ok ? 'Gemini API is working' : 'Gemini API failed'}</span>
+                  </div>
+                  {geminiResult.model && (
+                    <div className="text-zinc-400">
+                      Model: <span className="font-mono text-zinc-300">{geminiResult.model}</span>
+                      {geminiResult.elapsedMs != null && <span className="ml-2">· {geminiResult.elapsedMs}ms</span>}
+                    </div>
+                  )}
+                  {geminiResult.ok ? (
+                    geminiResult.reply && (
+                      <div className="text-zinc-400 break-words">
+                        Reply: <span className="text-zinc-200">{geminiResult.reply}</span>
+                      </div>
+                    )
+                  ) : (
+                    <div className="text-red-300/90 break-words whitespace-pre-wrap">{geminiResult.error}</div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Clear Bypass */}

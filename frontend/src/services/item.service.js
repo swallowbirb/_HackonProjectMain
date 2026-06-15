@@ -46,16 +46,14 @@ export const getPresignedUrl = async ({ fileName, contentType, itemId }) => {
  * Upload a File object directly to S3 via presigned URL.
  * Returns the public S3 URL.
  */
-export const uploadToS3 = async (file, itemId) => {
-  const { data } = await getPresignedUrl({
-    fileName: file.name,
-    contentType: file.type,
-    itemId,
-  });
+export const uploadToS3 = async (file, itemId, overrideName) => {
+  const contentType = file.type || 'image/jpeg';
+  const fileName = overrideName || file.name || 'upload.jpg';
+  const { data } = await getPresignedUrl({ fileName, contentType, itemId });
 
   await fetch(data.uploadUrl, {
     method: 'PUT',
-    headers: { 'Content-Type': file.type },
+    headers: { 'Content-Type': contentType },
     body: file,
   });
 
@@ -99,11 +97,11 @@ export const inspectEvidencePhoto = async ({
  */
 export const verifyEvidenceField = async ({
   itemId, fieldId, fieldLabel, expectedSubject, validationCriteria,
-  photoUrls, reason, category, productId,
+  photoUrls, reason, category, productId, montage = false,
 }) => {
   const response = await api.post('/grading/verify-field', {
     itemId, fieldId, fieldLabel, expectedSubject, validationCriteria,
-    photoUrls, reason, category, productId,
+    photoUrls, reason, category, productId, montage,
   });
   return response.data;
 };

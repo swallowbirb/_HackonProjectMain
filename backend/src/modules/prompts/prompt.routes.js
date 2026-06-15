@@ -9,5 +9,6 @@ const adminAuth = [requireAuth, attachUser, requireRole(['admin'])];
 router.get('/', adminAuth, promptController.listPrompts);
 router.put('/', adminAuth, promptController.upsertPrompt);
 router.post('/reset', adminAuth, promptController.resetPrompt);
+router.delete('/category', adminAuth, promptController.deleteCategory);
 
 module.exports = router;

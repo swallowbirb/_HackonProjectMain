@@ -145,13 +145,14 @@ const inspectPhoto = async (req, res, next) => {
 const verifyField = async (req, res, next) => {
   try {
     const { itemId, fieldId, fieldLabel, expectedSubject, validationCriteria,
-      photoUrls, reason, category, productId } = req.body || {};
+      photoUrls, reason, category, productId, montage } = req.body || {};
     if (!Array.isArray(photoUrls) || photoUrls.length === 0) {
       return res.status(400).json({ success: false, message: 'photoUrls is required (at least one)' });
     }
     const result = await gradingService.verifyField({
       itemId, fieldId, fieldLabel, expectedSubject, validationCriteria,
       photoUrls, reason, category, productId,
+      montage: !!montage,
     });
     return res.status(200).json({ success: true, data: result });
   } catch (error) {

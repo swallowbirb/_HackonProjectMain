@@ -52,8 +52,17 @@ def load_category_prompt(category: Optional[str]) -> Optional[str]:
         return None
 
 
-def load_template(name: str) -> str:
-    """Load a Pass-1/Pass-2 template by filename (without directory)."""
+def load_template(name: str, *, override: Optional[str] = None) -> str:
+    """
+    Load a template by filename (without directory).
+
+    When ``override`` is a non-empty string it is returned immediately — the
+    admin-edited DB content takes precedence over the bundled file (Req 14.2,
+    14.3).  The bundled file is the fallback when ``override`` is absent or
+    empty.
+    """
+    if override and override.strip():
+        return override
     path = PROMPTS_DIR / name
     try:
         return _read(path)

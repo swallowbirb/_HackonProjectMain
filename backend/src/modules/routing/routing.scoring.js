@@ -1,9 +1,19 @@
 /**
  * routing.scoring.js — the pure, deterministic disposition brain.
  *
- * No DB, no network, no Date.now() in the scoring path → same inputs always
- * produce the same output (unit-testable). The service layer gathers the inputs
- * (grade, trust, demand, location) and calls `decide()`.
+ * A plain DECISION TREE (no weighted scorecard, no magic point values). Same
+ * inputs always produce the same output (unit-testable). The service layer
+ * gathers the inputs (grade, trust, peer demand, best warehouse) and calls
+ * `decide()`.
+ *
+ *   1. Hard gates first  (counterfeit/hazardous → liquidate; hygiene → donate/
+ *      liquidate; abuser → return-to-seller; Grade D → donate).
+ *   2. A nearby peer buyer exists?            → peer-redistribute (skip warehouse)
+ *   3. A profitable "best" warehouse exists?  → resell (ship there, list it)
+ *   4. Otherwise (would lose money everywhere) → liquidate (if worth it) / donate
+ *
+ * The money math lives in `routing.warehouse.chooseWarehouse` (which returns a
+ * `viable` flag) and the simple `reverseLogisticsCost` below.
  */
 
 const {
@@ -11,16 +21,16 @@ const {
   WEIGHT_BRACKETS,
   DEFAULT_WEIGHT_KG,
   CATEGORY_WEIGHT_KG,
-  PATH_BASE,
-  GRADE_RESALE_FACTOR,
-  DEMAND_CONVERSION,
-  DEMAND_SCORE_CAP,
   HOLDING_COST_PER_DAY,
   HYGIENE_CATEGORIES,
   TRUST,
+  LIQUIDATE_FLOOR,
 } = require('./routing.config');
 
 const RESALE_CLASS = new Set(['resell', 'refurbish', 'peer-redistribute']);
+
+// A short local hop for a peer handoff (no warehouse leg).
+const PEER_HOP_KM = 8;
 
 /**
  * Great-circle distance between two [lng, lat] points, in km.
@@ -48,6 +58,9 @@ const categoryWeight = (category) => CATEGORY_WEIGHT_KG[category] || DEFAULT_WEI
 
 /**
  * Reverse-logistics cost for one leg (origin → destination), in ₹.
+ *   cost = baseFee + perKm × distanceKm × weightMultiplier
+ * Heavier items and longer hauls cost more — this is what makes "the shoes cost
+ * less than shipping the box" fall out naturally.
  */
 const reverseLogisticsCost = ({ origin, destination, weightKg, category }) => {
   const distanceKm = haversine(origin?.coordinates, destination?.coordinates);
@@ -57,93 +70,9 @@ const reverseLogisticsCost = ({ origin, destination, weightKg, category }) => {
 };
 
 /**
- * Demand → bounded score contribution. Demand is a signal, not a promise.
+ * Hard gates that OVERRIDE the tree. Returns { forcedPath|null, gatesApplied[] }.
  */
-const demandScore = (demandCount) => {
-  const expected = (Number(demandCount) || 0) * DEMAND_CONVERSION;
-  return Math.min(expected * 20, DEMAND_SCORE_CAP);
-};
-
-/**
- * Score every path for an item. Returns an array of { path, score, netRecovery, rationale }.
- *
- * @param {object} inputs
- *   grade: { grade, qualityScore, estimatedResalePct }
- *   resaleValue: Number (₹ expected sale price)
- *   demandCount: Number
- *   inboundCost: Number (₹ cost to move item to warehouse)
- *   category: String
- */
-const scorePaths = (inputs) => {
-  const { grade, resaleValue = 0, demandCount = 0, inboundCost = 0, category } = inputs;
-  const gradeLetter = grade?.grade || 'C';
-  const resaleFactor = GRADE_RESALE_FACTOR[gradeLetter] ?? 0.5;
-  const dScore = demandScore(demandCount);
-  const holdingPerDay = HOLDING_COST_PER_DAY[category] || HOLDING_COST_PER_DAY.general;
-
-  const out = [];
-
-  for (const path of Object.keys(PATH_BASE)) {
-    let score = PATH_BASE[path];
-    let netRecovery = 0;
-    const reasons = [];
-
-    if (RESALE_CLASS.has(path)) {
-      // Quality drives resale-class appeal.
-      score += resaleFactor * 40;
-      reasons.push(`grade ${gradeLetter} resale factor ${resaleFactor.toFixed(2)}`);
-
-      // Demand boosts resell and peer-redistribute the most.
-      if (path === 'resell' || path === 'peer-redistribute') {
-        score += dScore;
-        if (dScore > 0) reasons.push(`+${dScore.toFixed(1)} from ${demandCount} nearby buyer(s)`);
-      }
-
-      // Peer-redistribute skips the warehouse → lowest logistics cost.
-      if (path === 'peer-redistribute') {
-        netRecovery = resaleValue - CARRIER.baseFee; // one short hop
-        score += demandCount > 0 ? 15 : -30; // only viable if someone nearby wants it
-        reasons.push(demandCount > 0 ? 'nearby buyer enables direct handoff' : 'no nearby buyer for handoff');
-      } else if (path === 'refurbish') {
-        netRecovery = resaleValue * 0.85 - inboundCost - holdingPerDay * 14;
-        reasons.push('repair cost + warehouse holding deducted');
-      } else {
-        // resell via warehouse
-        netRecovery = resaleValue - inboundCost - holdingPerDay * 14;
-        reasons.push(`recovery ₹${resaleValue} − inbound ₹${inboundCost} − holding`);
-      }
-    } else if (path === 'donate') {
-      netRecovery = 0; // no recovery, but no shipping if local
-      score += gradeLetter === 'D' ? 20 : 0;
-      reasons.push('no shipping cost, tax/ESG benefit');
-    } else if (path === 'liquidate') {
-      netRecovery = resaleValue * 0.2; // bulk B2B pennies on the rupee
-      reasons.push('bulk lot recovery (~20%)');
-    } else if (path === 'return-to-seller') {
-      netRecovery = -inboundCost;
-      reasons.push('ship back, no resale');
-    }
-
-    // Economic reality: a negative net recovery suppresses the path.
-    if (netRecovery < 0) score += Math.max(netRecovery / 10, -25);
-
-    out.push({
-      path,
-      score: Math.round(score * 100) / 100,
-      netRecovery: Math.round(netRecovery),
-      rationale: reasons.join('; '),
-    });
-  }
-
-  return out;
-};
-
-/**
- * Apply hard gates that OVERRIDE the scoring math. Returns
- * { forcedPath|null, gatesApplied[] }.
- */
-const applyHardGates = (inputs) => {
-  const { grade, category, demandCount = 0, trust, counterfeit, hazardous } = inputs;
+const applyHardGates = ({ grade, category, trust, counterfeit, hazardous } = {}) => {
   const gatesApplied = [];
   let forcedPath = null;
 
@@ -156,8 +85,9 @@ const applyHardGates = (inputs) => {
   } else if (HYGIENE_CATEGORIES.includes(category)) {
     gatesApplied.push('HYGIENE_SAFETY');
     forcedPath = grade?.grade === 'A' || grade?.grade === 'B' ? 'donate' : 'liquidate';
-  } else if (grade?.grade === 'D' && demandCount === 0) {
-    gatesApplied.push('GRADE_D_NO_DEMAND');
+  } else if (grade?.grade === 'D') {
+    // Grade D is not resellable — donate it.
+    gatesApplied.push('GRADE_D_NOT_RESELLABLE');
     forcedPath = 'donate';
   }
 
@@ -171,29 +101,51 @@ const applyHardGates = (inputs) => {
 };
 
 /**
- * Rank scored paths (desc) and choose the winner, honouring any forced gate.
+ * Estimated ₹ net recovery per path — used only to render the comparison bars in
+ * the UI. Honest, simple money figures (no abstract points).
  */
-const rankAndChoose = (scored, forcedPath) => {
-  const ranked = [...scored].sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
-  let chosenPath;
-  if (forcedPath) {
-    chosenPath = forcedPath;
-    // Bubble the forced path to the front of the ranked list for display.
-    const idx = ranked.findIndex((r) => r.path === forcedPath);
-    if (idx > 0) {
-      const [forced] = ranked.splice(idx, 1);
-      ranked.unshift(forced);
-    }
-  } else {
-    chosenPath = ranked[0]?.path;
+const estimateRecoveries = ({ resaleValue = 0, inboundCost = 0, category, peerCount = 0, warehouse = null }) => {
+  const holding = (HOLDING_COST_PER_DAY[category] || HOLDING_COST_PER_DAY.general) * 14;
+  const peerHop = Math.round(CARRIER.baseFee + CARRIER.perKm * PEER_HOP_KM);
+  const warehouseRecovery = warehouse ? warehouse.score : Math.round(resaleValue - inboundCost - holding);
+
+  return {
+    'peer-redistribute': peerCount >= 1 ? Math.round(resaleValue - peerHop) : Math.round(resaleValue - peerHop) - 100,
+    resell: warehouseRecovery,
+    refurbish: Math.round(resaleValue * 0.85 - inboundCost - holding),
+    liquidate: Math.round(resaleValue * 0.2),
+    donate: 0,
+    'return-to-seller': -Math.round(inboundCost),
+  };
+};
+
+const rationaleFor = (path, { peerCount, warehouse, resaleValue, inboundCost }) => {
+  switch (path) {
+    case 'peer-redistribute':
+      return peerCount >= 1
+        ? `${peerCount} nearby buyer(s) — direct handoff, no warehouse leg`
+        : 'no nearby buyer for a direct handoff';
+    case 'resell':
+      return warehouse
+        ? `best warehouse ${warehouse.warehouse?.city || warehouse.warehouseCode}: recovery ₹${warehouse.score} (demand ${warehouse.breakdown?.demand ?? 0})`
+        : `recovery ₹${resaleValue} − inbound ₹${inboundCost} − holding`;
+    case 'refurbish':
+      return 'repair + warehouse holding deducted';
+    case 'liquidate':
+      return 'bulk B2B recovery (~20%)';
+    case 'donate':
+      return 'no recovery, ESG/tax benefit, no shipping';
+    case 'return-to-seller':
+      return 'ship back, no resale';
+    default:
+      return '';
   }
-  return { chosenPath, rankedAlternatives: ranked };
 };
 
 /**
  * Decide refund timing from trust + inbound cost.
- *   restricted        → reject (handled by gate), refundHold true
- *   low-trust         → refundHold true (physical re-grade before refund)
+ *   restricted        → reject
+ *   low-trust (watch) → hold for physical inspection
  *   trusted + cheap   → immediate
  *   otherwise         → on-resolution
  */
@@ -212,17 +164,58 @@ const decideRefundTiming = (trust, inboundCost) => {
 };
 
 /**
- * Top-level decision. Pure — service passes everything in.
+ * Top-level decision (pure decision tree).
  *
+ * @param {object} inputs
+ *   grade: { grade, ... }
+ *   category: String
+ *   resaleValue: Number
+ *   trust: { tier } | null
+ *   counterfeit, hazardous: Boolean
+ *   peerCount: Number          // confirmed nearby buyers for a direct handoff
+ *   warehouse: { viable, score, breakdown, warehouseCode, warehouse } | null
+ *   inboundCost: Number        // ₹ to reach the chosen/best warehouse
  * @returns {{ chosenPath, rankedAlternatives, hardGatesApplied,
  *             reverseLogisticsCost, refundTiming, refundHold, refundHoldReason }}
  */
-const decide = (inputs) => {
-  const inboundCost = inputs.inboundCost != null ? inputs.inboundCost : 0;
-  const scored = scorePaths({ ...inputs, inboundCost });
+const decide = (inputs = {}) => {
+  const {
+    grade, category, resaleValue = 0, trust,
+    peerCount = 0, warehouse = null, inboundCost = 0,
+  } = inputs;
+
   const { forcedPath, gatesApplied } = applyHardGates(inputs);
-  const { chosenPath, rankedAlternatives } = rankAndChoose(scored, forcedPath);
-  const refund = decideRefundTiming(inputs.trust, inboundCost);
+
+  // ── The tree ──────────────────────────────────────────────────────────────
+  let chosenPath;
+  if (forcedPath) {
+    chosenPath = forcedPath;                       // 1. hard gate
+  } else if (peerCount >= 1) {
+    chosenPath = 'peer-redistribute';              // 2. a nearby buyer wants it
+  } else if (warehouse && warehouse.viable) {
+    chosenPath = 'resell';                         // 3. a profitable warehouse exists
+  } else {
+    chosenPath = resaleValue >= LIQUIDATE_FLOOR ? 'liquidate' : 'donate'; // 4. nowhere profitable
+  }
+
+  // Comparison bars (₹ recovery), chosen path bubbled to the front.
+  const recoveries = estimateRecoveries({ resaleValue, inboundCost, category, peerCount, warehouse });
+  const rankedAlternatives = Object.keys(recoveries)
+    .map((path) => ({
+      path,
+      score: recoveries[path],
+      netRecovery: recoveries[path],
+      rationale: rationaleFor(path, { peerCount, warehouse, resaleValue, inboundCost }),
+    }))
+    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+
+  const idx = rankedAlternatives.findIndex((r) => r.path === chosenPath);
+  if (idx > 0) {
+    const [chosen] = rankedAlternatives.splice(idx, 1);
+    rankedAlternatives.unshift(chosen);
+  }
+
+  const refund = decideRefundTiming(trust, inboundCost);
 
   return {
     chosenPath,
@@ -238,10 +231,8 @@ module.exports = {
   weightMultiplier,
   categoryWeight,
   reverseLogisticsCost,
-  demandScore,
-  scorePaths,
   applyHardGates,
-  rankAndChoose,
+  estimateRecoveries,
   decideRefundTiming,
   decide,
   RESALE_CLASS,

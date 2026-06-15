@@ -29,13 +29,14 @@ async def synthesize_grade(
     seller_prompt: Optional[str] = None,
     base_prompt: Optional[str] = None,
     category_prompt: Optional[str] = None,
+    pass2_template: Optional[str] = None,
     trace=None,
 ) -> Dict[str, Any]:
     """
     Run Pass 2. Returns a dict with the validated Grade JSON fields plus modelVersions
     and the composed prompt. Raises GradeSynthesisError on irrecoverable failure.
     """
-    template = prompt_loader.load_template("pass2_grade_synthesis.txt")
+    template = prompt_loader.load_template("pass2_grade_synthesis.txt", override=pass2_template)
     body = template.format(analysis_summary=json.dumps(analysis_summary, ensure_ascii=False, indent=2))
     prompt = prompt_loader.compose(category, body, seller_prompt=seller_prompt,
                                    base_override=base_prompt, category_override=category_prompt)

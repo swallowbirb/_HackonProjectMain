@@ -1,0 +1,34 @@
+MONTAGE TRIAGE — VIDEO FRAME OVERVIEW
+
+You are reviewing a low-resolution contact sheet of video frames submitted as evidence for a return claim. The contact sheet is a grid of numbered cells (left-to-right, top-to-bottom, 0-based indexing). Each cell contains one video frame.
+
+Your task is a TRIAGE pass only — you are NOT making a final accept/reject decision. You are identifying which individual frames warrant closer, full-resolution inspection.
+
+FIELD CONTEXT:
+- Field: {field_label}
+- Expected subject: {expected_subject}
+- Required views: {required_views}
+- Return reason: {reason}
+- Total frames in grid: {frame_count}
+
+TRIAGE CRITERIA — flag a cell if:
+1. The frame might show evidence of damage, wear, or defects relevant to the claim
+2. The frame might contain a required view that can't be confirmed at low resolution
+3. The frame appears significantly different from others (potential discontinuity)
+4. Text, labels, or serial numbers may be present and need OCR at full resolution
+5. The lighting/angle is unusual enough to warrant a second look
+
+Do NOT flag:
+- Clearly blank or black frames
+- Frames that are obviously duplicates of already-flagged frames
+- Frames showing nothing relevant to the field's required views
+
+Respond with ONLY a JSON object in this exact shape:
+{{
+  "flagged_cells": [<0-based integer indices of cells that need full-res inspection>],
+  "overview_notes": "<one sentence: what the grid shows overall>"
+}}
+
+If all frames look clean and no closer inspection is needed, return an empty flagged_cells list. If uncertain, err on the side of flagging — a false positive costs one extra LLM call; a false negative misses evidence.
+
+Return ONLY the JSON object, no surrounding text, no code fences.

@@ -31,6 +31,7 @@ import ResaleMarketplacePage from './pages/ResaleMarketplacePage';
 import ResaleListingDetailPage from './pages/ResaleListingDetailPage';
 import LookingForPage from './pages/LookingForPage';
 import DemandMapPage from './pages/admin/DemandMapPage';
+import ResellerDashboardPage from './pages/reseller/ResellerDashboardPage';
 
 // ─── Role Guards ────────────────────────────────────────────────────────────
 
@@ -200,6 +201,10 @@ function App() {
               <Route
                 path="/seller/new-offer"
                 element={<CustomSignedIn><SellerGuard><NewOfferPage /></SellerGuard></CustomSignedIn>}
+              />
+              <Route
+                path="/reseller/dashboard"
+                element={<CustomSignedIn><SellerGuard><MarketplaceLayout><ResellerDashboardPage /></MarketplaceLayout></SellerGuard></CustomSignedIn>}
               />
 
               {/* Brand routes */}

@@ -2,6 +2,84 @@ const Item = require('./item.model');
 const { appendEvent } = require('../lifecycle/lifecycle.service');
 const ItemLogger = require('../../utils/itemLogger');
 
+// --- Dynamic-stepper helpers (task 9.3) -------------------------------------
+// Shared, additive utilities for the submit-time required-field gate and the
+// importance-based human-review routing decision. All degrade safely on legacy
+// (no-aspect / flat `fields[]`) schemas so existing submit behavior is preserved.
+
+/**
+ * Temporarily hidden fields (serial/model-label) are not required for now —
+ * mirrors the frontend filter so the gate doesn't block on a field the user
+ * never sees.
+ */
+const _isHiddenField = (f) => {
+  const s = `${(f && f.id) || ''} ${(f && f.label) || ''} ${(f && f.expected_subject) || ''}`.toLowerCase();
+  return /serial|imei/.test(s)
+    || /(brand|model)[^a-z]{0,12}label/.test(s)
+    || /label[^a-z]{0,12}(serial|brand|model)/.test(s)
+    || (f && f.id === 'label_photo');
+};
+
+/**
+ * Flatten every field across a Form_Schema's `steps[]` (v3 aspect/step shape) and
+ * any legacy top-level `fields[]`, preserving order. Returns [] for a missing or
+ * non-object schema; a legacy flat schema yields exactly its `fields[]`.
+ */
+const _collectSchemaFields = (schema) => {
+  if (!schema || typeof schema !== 'object') return [];
+  const out = [];
+  if (Array.isArray(schema.steps)) {
+    for (const step of schema.steps) {
+      if (step && Array.isArray(step.fields)) out.push(...step.fields);
+    }
+  }
+  if (Array.isArray(schema.fields)) out.push(...schema.fields);
+  return out.filter(Boolean);
+};
+
+/**
+ * A field requires uploaded media when it is required, not a hidden field, and is
+ * not a text-capture field (`type='text'` or `capture_mode='text'` — Req 5.3, a
+ * verifiability=none/text field carries no media requirement).
+ */
+const _requiresMediaEvidence = (f) =>
+  !!f && f.required === true && !_isHiddenField(f)
+  && f.type !== 'text' && f.capture_mode !== 'text';
+
+/**
+ * True when the item has at least one uploaded photo (or selected video frame)
+ * for the given field.
+ */
+const _fieldHasEvidence = (item, fieldImages, fieldId) => {
+  const imgs = fieldImages && fieldImages[fieldId];
+  if (Array.isArray(imgs) && imgs.length > 0) return true;
+  const ve = item && item.videoEvidence && item.videoEvidence[fieldId];
+  if (ve && Array.isArray(ve.selectedFrameUrls) && ve.selectedFrameUrls.length > 0) return true;
+  return false;
+};
+
+/**
+ * Resolve the photo/frame URL set the inline Verify_Action should inspect for a
+ * field — uploaded photos first, else selected video frames.
+ */
+const _fieldEvidenceUrls = (item, fieldImages, fieldId) => {
+  if (Array.isArray(fieldImages && fieldImages[fieldId]) && fieldImages[fieldId].length > 0) {
+    return fieldImages[fieldId];
+  }
+  const ve = item && item.videoEvidence && item.videoEvidence[fieldId];
+  if (ve && Array.isArray(ve.selectedFrameUrls)) return ve.selectedFrameUrls;
+  return [];
+};
+
+/**
+ * True when a resolved field context declares at least one `verifiability=none`
+ * aspect (Pass-1 only emits these for material, non-photo-verifiable claims), so
+ * the item routes to human review immediately — no two attempts required.
+ */
+const _hasUnverifiableAspect = (ctx) =>
+  !!ctx && Array.isArray(ctx.aspects)
+  && ctx.aspects.some((a) => a && a.verifiability === 'none');
+
 // Allowed state machine transitions
 const ALLOWED_TRANSITIONS = {
   INITIATED: ['AWAITING_EVIDENCE', 'EVIDENCE_PENDING', 'CANCELLED'],
@@ -173,23 +251,46 @@ const attachEvidence = async (itemId, photos, actor, opts = {}) => {
   const additionalNotes = opts.additionalNotes && opts.additionalNotes.trim()
     ? opts.additionalNotes.trim() : null;
 
-  // --- Required-field gating (improvement #7) ---
-  // If the item has a persisted AI/generic form, ensure every required photo field
-  // has at least one image before we burn a grading pass.
+  // --- Required-field gate + human-review routing (task 9.3) ---
+  // Works for both the v3 aspect/step schema and legacy flat `fields[]`. The new
+  // aspect-driven routing only fires for schemas that actually declare aspects;
+  // legacy schemas keep the original required-field behavior unchanged.
   const formSchema = item.evidenceForm && item.evidenceForm.schema;
-  if (fieldImages && formSchema && Array.isArray(formSchema.fields)) {
-    // Temporarily hidden fields (serial/model-label) are not required for now —
-    // mirrors the frontend filter so the gate doesn't block on a field the user never sees.
-    const isHiddenField = (f) => {
-      const s = `${f.id || ''} ${f.label || ''} ${f.expected_subject || ''}`.toLowerCase();
-      return /serial|imei/.test(s)
-        || /(brand|model)[^a-z]{0,12}label/.test(s)
-        || /label[^a-z]{0,12}(serial|brand|model)/.test(s)
-        || f.id === 'label_photo';
-    };
-    const missing = formSchema.fields
-      .filter((f) => f && f.required && f.type === 'photo' && !isHiddenField(f))
-      .filter((f) => !(Array.isArray(fieldImages[f.id]) && fieldImages[f.id].length > 0))
+  if (fieldImages && formSchema) {
+    const gradingService = require('../grading/grading.service');
+    const allFields = _collectSchemaFields(formSchema);
+    const mediaFields = allFields.filter(_requiresMediaEvidence);
+
+    // Log the submit-gate context so devs can see exactly what schema is being
+    // evaluated — schema version, step structure, field verifiability breakdown.
+    const steps = Array.isArray(formSchema.steps) ? formSchema.steps : [];
+    const unverifiableFields = allFields.filter((f) =>
+      Array.isArray(f.aspects) && f.aspects.some((a) => a.verifiability === 'none')
+    );
+    await ItemLogger.log(itemId, 'SUBMIT_GATE',
+      `🚦 Submit gate — evaluating ${mediaFields.length} required media field(s)` +
+      (steps.length > 1
+        ? ` across ${steps.length} steps (${steps.map((s) => `"${s.title || s.id}"`).join(' → ')})`
+        : ' (single-step form)') +
+      (unverifiableFields.length
+        ? `\n⚠️  ${unverifiableFields.length} field(s) have verifiability=none aspects — will route to human review if present: ${unverifiableFields.map((f) => f.label || f.id).join(', ')}`
+        : '') +
+      `\nSchema v${formSchema.schemaVersion || '?'} | source: ${item.evidenceForm && item.evidenceForm.source || 'unknown'}`,
+      {
+        phase: 'evidence',
+        schemaVersion: formSchema.schemaVersion,
+        schemaSource: item.evidenceForm && item.evidenceForm.source,
+        stepCount: steps.length,
+        mediaFieldCount: mediaFields.length,
+        allFieldCount: allFields.length,
+        unverifiableFieldCount: unverifiableFields.length,
+        steps: steps.map((s) => ({ id: s.id, title: s.title, fieldCount: (s.fields || []).length })),
+      });
+
+    // Req 4.6 — a required field with NO evidence at all blocks submission and is
+    // named in the error so the user knows exactly what is outstanding.
+    const missing = mediaFields
+      .filter((f) => !_fieldHasEvidence(item, fieldImages, f.id))
       .map((f) => f.label || f.id);
     if (missing.length > 0) {
       const err = new Error(`Missing required evidence: ${missing.join(', ')}`);
@@ -199,6 +300,87 @@ const attachEvidence = async (itemId, photos, actor, opts = {}) => {
         `⚠️ Submission blocked — ${missing.length} required field(s) missing: ${missing.join(', ')}`,
         { phase: 'evidence', level: 'warn', missing });
       throw err;
+    }
+
+    // Req 4.5 — a required field WITH uploads but no successful verification gets
+    // exactly one inline Verify_Action before the two-attempt pass-through rule.
+    // verifyField increments the attempt counter and may pass the field through
+    // (status='unverified') on its 2nd failed attempt.
+    const fieldStateBefore = (item.evidenceForm && item.evidenceForm.fieldState) || {};
+    for (const f of mediaFields) {
+      const st = fieldStateBefore[f.id];
+      if (st && st.status === 'verified') continue; // already verified — nothing to do
+      const photoUrls = _fieldEvidenceUrls(item, fieldImages, f.id);
+      if (photoUrls.length === 0) continue;
+      try {
+        await gradingService.verifyField({
+          itemId: item._id.toString(),
+          fieldId: f.id,
+          fieldLabel: f.label || f.id,
+          expectedSubject: f.expected_subject,
+          validationCriteria: f.validation_criteria
+            || (Array.isArray(f.aspects) && f.aspects[0] && f.aspects[0].validation_criteria)
+            || undefined,
+          photoUrls,
+          reason: item.reasonText || item.description || undefined,
+          category: item.category,
+          productId: item.originalProductId ? item.originalProductId.toString() : null,
+        });
+      } catch (err) {
+        // Never block submit on an inline-verify failure — the field simply keeps
+        // its prior state and the routing/pass-through rules still apply.
+        console.warn(`[items] inline verify failed for ${itemId}/${f.id}: ${err.message}`);
+      }
+    }
+
+    // Re-read the per-field bookkeeping the inline verifies just mutated. verifyField
+    // writes via its own fresh document, so our in-memory `item.evidenceForm.fieldState`
+    // is stale here; read a fresh lean snapshot for the routing decision.
+    let fieldState = fieldStateBefore;
+    try {
+      const refreshed = await Item.findById(itemId).select('evidenceForm.fieldState').lean();
+      fieldState = (refreshed && refreshed.evidenceForm && refreshed.evidenceForm.fieldState) || {};
+    } catch (_) { /* fall back to the pre-verify snapshot */ }
+
+    // Req 3.4 / 4.2 / 4.3 / 4.4 — importance-based human-review routing.
+    const reasons = [];
+    for (const f of allFields) {
+      if (!f || !f.id) continue;
+      const ctx = gradingService._resolveFieldFromSchema(formSchema, f.id);
+      // Any material verifiability=none aspect routes immediately — no attempts.
+      if (_hasUnverifiableAspect(ctx)) {
+        reasons.push(`unverifiable:${f.id}`);
+        continue;
+      }
+      // A passed-through (unverified) field whose highest aspect importance is
+      // `critical` routes; `minor`/`standard` pass through silently.
+      const st = fieldState[f.id];
+      if (st && st.status === 'unverified' && ctx.highestImportance === 'critical') {
+        reasons.push(`unverified_critical:${f.id}`);
+      }
+    }
+
+    if (reasons.length > 0) {
+      const uniqueReasons = Array.from(new Set(reasons));
+      item.needsHumanReview = true;
+      item.humanReviewReasons = uniqueReasons;
+      const unverifiableList = uniqueReasons.filter((r) => r.startsWith('unverifiable:')).map((r) => r.slice(13));
+      const criticalList = uniqueReasons.filter((r) => r.startsWith('unverified_critical:')).map((r) => r.slice(20));
+      await ItemLogger.log(itemId, 'REVIEW_FLAGGED',
+        `⚠️ Routed to human review (${uniqueReasons.length} reason(s)):` +
+        (unverifiableList.length
+          ? `\n  • verifiability=none claim on field(s): ${unverifiableList.join(', ')} — camera cannot confirm, needs agent review`
+          : '') +
+        (criticalList.length
+          ? `\n  • unverified critical field(s): ${criticalList.join(', ')} — passed through after 2 failed attempts`
+          : ''),
+        {
+          phase: 'evidence',
+          level: 'warn',
+          reasons: uniqueReasons,
+          unverifiableFields: unverifiableList,
+          unverifiedCriticalFields: criticalList,
+        });
     }
   }
 
@@ -266,6 +448,11 @@ const attachEvidence = async (itemId, photos, actor, opts = {}) => {
           .join('\n\n') || undefined,
         intakePath: item.intakePath === 'return' ? 'returns' : 'sell-used',
         originalProductId: item.originalProductId?.toString() || null,
+        // Dynamic-stepper (task 9.3): carry the submit-time human-review routing
+        // decision so persistGrade flags the grade and the routing brain holds it
+        // for inspection. Also persisted on the Item above.
+        needsHumanReview: !!item.needsHumanReview,
+        humanReviewReasons: Array.isArray(item.humanReviewReasons) ? item.humanReviewReasons : [],
       })
       .then(async (grade) => {
         // Phase 3.5: close the loop — transition the item to GRADED and link the grade.

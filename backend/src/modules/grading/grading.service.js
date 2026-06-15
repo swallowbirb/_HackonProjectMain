@@ -202,12 +202,65 @@ const _resolvePrompts = async (category, sellerPrompt) => {
   return out;
 };
 
+// Maps each ML task-template key to the request-body field the ML service reads it
+// from (see ml-service schemas, task 6.2). Extra body fields are harmless if the ML
+// side ignores them, so threading these is always safe.
+const _TEMPLATE_BODY_FIELDS = {
+  pass1_form: 'pass1_template',
+  pass2_synthesis: 'pass2_template',
+  evidence_inspection: 'inspection_template',
+  montage: 'montage_template',
+};
+
+/**
+ * Resolve admin-edited task-template overrides for a grading run (v3, Req 14.2).
+ * Only DB overrides are returned — never the backend's last-resort default — so the
+ * ML service's bundled `.txt` file still wins when no admin edit exists. Pass the
+ * subset of template keys relevant to the call (e.g. just `pass1_form` for /form).
+ *
+ * @param {string[]} keys - template keys to resolve (subset of SUPPORTED_TEMPLATES)
+ * @returns {Promise<{ body: object, appliedKeys: string[] }>}
+ *   `body` carries the ML body fields to merge in; `appliedKeys` lists the templates
+ *   that came from an admin edit (for the applied-asset log, Req 15.4).
+ */
+const _resolveTemplateOverrides = async (keys) => {
+  const body = {};
+  const appliedKeys = [];
+  for (const key of keys) {
+    const bodyField = _TEMPLATE_BODY_FIELDS[key];
+    if (!bodyField) continue;
+    try {
+      const override = await promptService.getTemplateOverride(key);
+      if (override) {
+        body[bodyField] = override;
+        appliedKeys.push(key);
+      }
+    } catch (err) {
+      console.warn(`[grading] template override resolution failed for '${key}': ${err.message}`);
+    }
+  }
+  return { body, appliedKeys };
+};
+
+/**
+ * Log that one or more admin-edited Prompt_Assets were applied to a run (Req 15.4).
+ * No-op when nothing was overridden, so non-admin-edited runs stay quiet.
+ */
+const _logAppliedTemplateOverrides = async (itemId, appliedKeys, phase) => {
+  if (!itemId || !Array.isArray(appliedKeys) || appliedKeys.length === 0) return;
+  const labels = appliedKeys.map((k) => promptService.TEMPLATE_LABELS[k] || k);
+  await ItemLogger.log(itemId, 'PROMPT_OVERRIDE_APPLIED',
+    `✏️ Admin-edited prompt asset(s) applied to this run: ${labels.join(', ')}`,
+    { phase: phase || 'request', level: 'info', appliedTemplates: appliedKeys });
+};
+
 /**
  * Call the ML_Service grading pipeline. Returns { data, ms } where ms is the
  * round-trip latency. Throws on timeout / unreachable / non-2xx.
  */
 const callMlGrade = async (payload) => {
   const prompts = await _resolvePrompts(payload.category, payload.sellerPrompt);
+  const { body: templateBody, appliedKeys } = await _resolveTemplateOverrides(['pass2_synthesis']);
   const body = {
     item_id: payload.itemId,
     photos: payload.imageUrls,
@@ -221,7 +274,10 @@ const callMlGrade = async (payload) => {
     base_prompt: prompts.base_prompt,
     category_prompt: prompts.category_prompt,
     seller_prompt: prompts.seller_prompt,
+    ...templateBody,
   };
+
+  await _logAppliedTemplateOverrides(payload.itemId, appliedKeys, 'request');
 
   const startedAt = Date.now();
   const resp = await axios.post(ML_GRADE_ENDPOINT, body, {
@@ -239,10 +295,34 @@ const persistGrade = async ({ payload, ml }) => {
   const mapped = mapMlResponseToGrade(ml);
 
   // Human-review escalation (Req 9.1 / 9.2).
-  const flaggedForReview = mapped.confidence === 'low' || (mapped.missingEvidence || []).length > 0;
+  const lowConfidence = mapped.confidence === 'low';
+  const hasMissingEvidence = (mapped.missingEvidence || []).length > 0;
+
+  // Dynamic-stepper (task 9.3, Req 3.4 / 4.3 / 4.4): an item-level human-review
+  // routing decision computed upstream (unverified critical field, or a material
+  // verifiability=none claim) is carried in additively and folded into the existing
+  // review flag so the routing brain takes the hold-for-inspection path. The
+  // specific routing reason takes precedence over the confidence/evidence reasons
+  // because it is a deliberate signal, not a heuristic.
+  const routedForHumanReview = !!payload.needsHumanReview;
+  const routingReasons = Array.isArray(payload.humanReviewReasons) ? payload.humanReviewReasons : [];
+
+  const flaggedForReview = lowConfidence || hasMissingEvidence || routedForHumanReview;
   let reviewReason = '';
   if (flaggedForReview) {
-    reviewReason = mapped.confidence === 'low' ? 'low_confidence' : 'missing_evidence';
+    if (routedForHumanReview) {
+      if (routingReasons.some((r) => String(r).startsWith('unverifiable'))) {
+        reviewReason = 'unverifiable_claim';
+      } else if (routingReasons.some((r) => String(r).startsWith('unverified_critical'))) {
+        reviewReason = 'unverified_critical_field';
+      } else {
+        reviewReason = 'human_review';
+      }
+    } else if (lowConfidence) {
+      reviewReason = 'low_confidence';
+    } else {
+      reviewReason = 'missing_evidence';
+    }
   }
 
   const doc = {
@@ -304,6 +384,10 @@ const triggerGrading = async (itemId, options = {}) => {
     category: options.category,
     listingImageUrls: options.listingImageUrls || [],
     catalogHashes: options.catalogHashes || [],
+    // Dynamic-stepper (task 9.3): additive human-review routing carried from the
+    // submit gate. Falls back to the persisted Item flag below when not provided.
+    needsHumanReview: !!options.needsHumanReview,
+    humanReviewReasons: Array.isArray(options.humanReviewReasons) ? options.humanReviewReasons : [],
   };
 
   // Backfill listing reference photos + the seller's per-product grading instructions
@@ -336,6 +420,22 @@ const triggerGrading = async (itemId, options = {}) => {
         { phase: 'request', level: 'warn', productId: String(payload.productId) }
       );
     }
+  }
+
+  // --- Dynamic-stepper (task 9.3): backfill the human-review routing decision ---
+  // When a caller (e.g. attachEvidence) didn't pass an explicit decision, honor the
+  // one persisted on the Item by the submit gate so the routing brain still holds
+  // for inspection. Best-effort — a read failure must never break grading.
+  if (!payload.needsHumanReview && mongoose.isValidObjectId(itemId)) {
+    try {
+      const itemDoc = await Item.findById(itemId)
+        .select('needsHumanReview humanReviewReasons').lean();
+      if (itemDoc && itemDoc.needsHumanReview) {
+        payload.needsHumanReview = true;
+        payload.humanReviewReasons = Array.isArray(itemDoc.humanReviewReasons)
+          ? itemDoc.humanReviewReasons : [];
+      }
+    } catch (_) { /* best-effort */ }
   }
 
   // --- Gather stored Evidence Inspector fragments (v2.34) ---
@@ -643,6 +743,10 @@ const startFormGeneration = async (itemId, { productId, reason, category, initia
   let listingData = {};
   let listingImageUrls = [];
   let sellerPrompt;
+  // Dynamic-stepper context (Req 6.5, 8.5): the resolved item value scales the
+  // form's aspect count/strictness. Derived from the catalog product price below;
+  // null when unknown so the ML side falls back to its value-agnostic defaults.
+  let itemValue = null;
   if (productId && mongoose.Types.ObjectId.isValid(productId)) {
     try {
       const Product = require('../products/product.model');
@@ -658,6 +762,9 @@ const startFormGeneration = async (itemId, { productId, reason, category, initia
           condition: product.condition,
           price: product.price,
         };
+        if (typeof product.price === 'number' && Number.isFinite(product.price)) {
+          itemValue = product.price;
+        }
         listingImageUrls = Array.isArray(product.images) ? product.images.slice(0, 4) : [];
         if (product.gradingInstructions && product.gradingInstructions.trim()) {
           sellerPrompt = product.gradingInstructions.trim();
@@ -672,16 +779,35 @@ const startFormGeneration = async (itemId, { productId, reason, category, initia
     }
   }
 
+  // Dynamic-stepper context (Req 6.5, 8.5): the customer's trust tier scales the
+  // form's strictness. Use the snapshot captured on the item at submission time
+  // (Item.trustTierAtSubmission) — readily available and stable for this claim —
+  // falling back to null when unknown so the ML side stays value/trust-agnostic.
+  let trustTier = null;
+  if (mongoose.isValidObjectId(itemId)) {
+    try {
+      const item = await Item.findById(itemId).select('trustTierAtSubmission').lean();
+      if (item && item.trustTierAtSubmission) trustTier = item.trustTierAtSubmission;
+    } catch (err) {
+      console.warn(`[grading] could not load item ${itemId} trust tier for Pass 1: ${err.message}`);
+    }
+  }
+
   const prompts = await _resolvePrompts(category, sellerPrompt);
+  const { body: templateBody, appliedKeys } = await _resolveTemplateOverrides(['pass1_form']);
 
   await ItemLogger.log(itemId, 'PASS1_START',
     `📝 Pass 1 form generation requested (category=${category || 'unknown'}, ` +
     `${(initialPhotos || []).length} clarifying photo(s), ` +
     `${listingImageUrls.length} catalog reference photo(s), ` +
+    `trust=${trustTier || 'unknown'}, value=${itemValue != null ? itemValue : 'unknown'}, ` +
     `listing data ${Object.keys(listingData).length ? 'loaded' : 'unavailable'})`,
     { phase: 'pass1', endpoint: `${ML_SERVICE_URL}/grade/form`,
       catalogReferenceCount: listingImageUrls.length,
+      trustTier, itemValue,
       hasListingData: Object.keys(listingData).length > 0 });
+
+  await _logAppliedTemplateOverrides(itemId, appliedKeys, 'pass1');
   try {
     const startedAt = Date.now();
     const resp = await axios.post(`${ML_SERVICE_URL}/grade/form`, {
@@ -689,12 +815,15 @@ const startFormGeneration = async (itemId, { productId, reason, category, initia
       reason,
       category,
       initial_photos: initialPhotos || [],
+      trust_tier: trustTier,
+      item_value: itemValue,
       listing_image_urls: listingImageUrls,
       listing_data: listingData,
       image_hints: listingData.imageHints || [],
       base_prompt: prompts.base_prompt,
       category_prompt: prompts.category_prompt,
       seller_prompt: prompts.seller_prompt,
+      ...templateBody,
     }, { timeout: ML_TIMEOUT_MS });
     const ms = Date.now() - startedAt;
 
@@ -710,9 +839,30 @@ const startFormGeneration = async (itemId, { productId, reason, category, initia
     const readiness = mlStatus === 'generic_default' || mlStatus === 'cache_degraded' ? 'fallback' : 'ready';
     _formState.set(itemId, { status: readiness, schema, source: mlStatus });
     await _persistFormToItem(itemId, { status: readiness, schema, source: mlStatus });
+    const steps = Array.isArray(schema?.steps) ? schema.steps : [];
+    const videoFields = (schema?.fields || []).filter((f) => f.capture_mode === 'video').length;
+    const textFields = (schema?.fields || []).filter((f) => f.type === 'text').length;
+    const unverifiableFields = (schema?.fields || []).filter((f) =>
+      Array.isArray(f.aspects) && f.aspects.some((a) => a.verifiability === 'none')
+    ).length;
     await ItemLogger.log(itemId, 'PASS1_COMPLETE',
-      `✅ Pass 1 form ready in ${ms}ms (status=${mlStatus}, ${fieldCount} field(s))`,
-      { phase: 'pass1', level: 'success', durationMs: ms, status: mlStatus, fieldCount });
+      `✅ Pass 1 form ready in ${ms}ms — ${steps.length} step(s), ${fieldCount} field(s)` +
+      (steps.length > 1
+        ? ` [${steps.map((s) => `"${s.title || s.id}" (${(s.fields || []).length}f)`).join(' → ')}]`
+        : ' (single-step)') +
+      (videoFields ? `, ${videoFields} video field(s)` : '') +
+      (textFields ? `, ${textFields} text field(s)` : '') +
+      (unverifiableFields ? `, ${unverifiableFields} field(s) with verifiability=none` : '') +
+      ` | status=${mlStatus}, schemaVersion=${schema?.schemaVersion || '?'}`,
+      {
+        phase: 'pass1', level: 'success', durationMs: ms, status: mlStatus, fieldCount,
+        stepCount: steps.length,
+        videoFieldCount: videoFields,
+        textFieldCount: textFields,
+        unverifiableFieldCount: unverifiableFields,
+        schemaVersion: schema?.schemaVersion,
+        steps: steps.map((s) => ({ id: s.id, title: s.title, fieldCount: (s.fields || []).length })),
+      });
   } catch (err) {
     // Pass 1 failed irrecoverably -> serve last-resort default as ready (Req 4.5).
     const errTrace = err.response?.data?.detail?.trace || err.response?.data?.trace;
@@ -969,6 +1119,128 @@ const _persistFieldFragment = async (itemId, fragment) => {
 };
 
 /**
+ * Importance ordering used to resolve a field's highest aspect importance.
+ * Dynamic-stepper: the passed-through human-review routing decision (task 9.3)
+ * keys off the stored `highestImportance`.
+ */
+const _IMPORTANCE_RANK = { minor: 1, standard: 2, critical: 3 };
+
+/**
+ * Resolve a field's declared inspection context from the persisted Form_Schema
+ * (v3 aspect/step shape). Flattens fields across steps (and any legacy flat
+ * `fields[]`), then derives, for the target field: its `aspects`, the union of
+ * their `required_views`, the sibling-field scope (every OTHER field's identity,
+ * so the inspector does not demand evidence another field covers — Req 2.4),
+ * the `capture_mode`, the effective `detail_level`, and the highest aspect
+ * `importance`. All values degrade to safe empties, so a legacy schema with no
+ * steps/aspects simply yields no extra context.
+ */
+const _resolveFieldFromSchema = (schema, fieldId) => {
+  const ctx = {
+    aspects: [], requiredViews: [], siblingFields: [],
+    captureMode: undefined, detailLevel: undefined, highestImportance: undefined,
+  };
+  if (!schema || typeof schema !== 'object') return ctx;
+
+  // Flatten every field across steps + any legacy top-level fields.
+  const allFields = [];
+  if (Array.isArray(schema.steps)) {
+    for (const step of schema.steps) {
+      if (step && Array.isArray(step.fields)) allFields.push(...step.fields);
+    }
+  }
+  if (Array.isArray(schema.fields)) allFields.push(...schema.fields);
+  if (allFields.length === 0) return ctx;
+
+  const subjectOf = (f) =>
+    f.expected_subject ||
+    (Array.isArray(f.aspects) && f.aspects[0] && f.aspects[0].expected_subject) ||
+    f.label || f.id;
+
+  // Sibling scope (Req 2.4): every OTHER field's identity.
+  ctx.siblingFields = allFields
+    .filter((f) => f && f.id && f.id !== fieldId)
+    .map((f) => ({ id: f.id, label: f.label || f.id, expected_subject: subjectOf(f) }));
+
+  const target = allFields.find((f) => f && f.id === fieldId);
+  if (!target) return ctx;
+
+  const aspects = Array.isArray(target.aspects) ? target.aspects : [];
+  ctx.aspects = aspects;
+  ctx.captureMode = target.capture_mode || undefined;
+
+  // Union of declared required_views across the field's aspects (Req 2.1 convenience).
+  const seen = new Set();
+  for (const a of aspects) {
+    const views = Array.isArray(a && a.required_views) ? a.required_views : [];
+    for (const v of views) {
+      if (!v) continue;
+      const key = String(v).trim().toLowerCase();
+      if (!seen.has(key)) { seen.add(key); ctx.requiredViews.push(v); }
+    }
+  }
+
+  // detail_level: high if ANY aspect needs full-res fidelity, else normal.
+  ctx.detailLevel = aspects.some((a) => a && a.detail_level === 'high') ? 'high' : 'normal';
+
+  // highestImportance: max across aspects (drives the task-9.3 routing decision).
+  let rank = 0;
+  for (const a of aspects) {
+    const r = _IMPORTANCE_RANK[a && a.importance] || 0;
+    if (r > rank) rank = r;
+  }
+  ctx.highestImportance =
+    Object.keys(_IMPORTANCE_RANK).find((k) => _IMPORTANCE_RANK[k] === rank) || undefined;
+
+  return ctx;
+};
+
+/**
+ * Record one Verify_Action against a field's bookkeeping state (Req 4.1).
+ * Increments `verifyAttempts`, resolves `status`, and stores `highestImportance`
+ * for the downstream human-review routing decision (task 9.3):
+ *   • accepted             → status='verified'
+ *   • rejected, 2nd+ fail  → status='unverified' (two-attempt pass-through)
+ *   • rejected, 1st fail   → status='staged'
+ *
+ * Loads a FRESH document so the `evidenceFragments` just written via the atomic
+ * $push/$pull are never clobbered, and uses markModified because
+ * `evidenceForm.fieldState` is a Mixed sub-document. Never throws.
+ *
+ * @returns {Promise<object|null>} the field's new state, or null on failure.
+ */
+const _recordVerifyAttempt = async (itemId, fieldId, { accepted, highestImportance }) => {
+  if (!mongoose.isValidObjectId(itemId) || !fieldId) return null;
+  try {
+    const doc = await Item.findById(itemId).select('evidenceForm');
+    if (!doc) return null;
+    if (!doc.evidenceForm) doc.evidenceForm = {};
+    if (!doc.evidenceForm.fieldState || typeof doc.evidenceForm.fieldState !== 'object') {
+      doc.evidenceForm.fieldState = {};
+    }
+    const prev = doc.evidenceForm.fieldState[fieldId] || {};
+    const verifyAttempts = (Number(prev.verifyAttempts) || 0) + 1;
+    let status;
+    if (accepted) status = 'verified';
+    else if (verifyAttempts >= 2) status = 'unverified'; // two-attempt pass-through (Req 4.1)
+    else status = 'staged';
+    const next = {
+      ...prev,
+      verifyAttempts,
+      status,
+      highestImportance: highestImportance || prev.highestImportance || undefined,
+    };
+    doc.evidenceForm.fieldState[fieldId] = next;
+    doc.markModified('evidenceForm.fieldState');
+    await doc.save();
+    return next;
+  } catch (err) {
+    console.warn(`[grading] could not record verify attempt for ${itemId}/${fieldId}: ${err.message}`);
+    return null;
+  }
+};
+
+/**
  * Per-field batched Evidence Inspection (Pass 1.5, v2.35).
  *
  * The user clicks "Submit Field" → the frontend sends every photo URL for that
@@ -982,7 +1254,8 @@ const _persistFieldFragment = async (itemId, fragment) => {
  * never hard-blocked; the synthesizer at submit can still flag the item.
  */
 const verifyField = async ({ itemId, fieldId, fieldLabel, expectedSubject,
-                              validationCriteria, photoUrls, reason, category, productId }) => {
+                              validationCriteria, photoUrls, reason, category, productId,
+                              montage = false }) => {
   const startedAt = Date.now();
   photoUrls = Array.isArray(photoUrls) ? photoUrls.filter(Boolean) : [];
 
@@ -999,16 +1272,25 @@ const verifyField = async ({ itemId, fieldId, fieldLabel, expectedSubject,
   }
 
   // Backfill product/category/reason from the Item when the caller didn't supply
-  // them (the inspector needs catalog context for identity_match).
-  if (itemId && mongoose.isValidObjectId(itemId) && (!productId || !category || !reason)) {
+  // them (the inspector needs catalog context for identity_match), AND resolve the
+  // field's declared inspection context (aspects, required_views, sibling scope,
+  // capture mode) from the persisted Form_Schema (Req 2.4). This always runs so the
+  // structured-aspect threading works even when product/category/reason were given.
+  let fieldCtx = {
+    aspects: [], requiredViews: [], siblingFields: [],
+    captureMode: undefined, detailLevel: undefined, highestImportance: undefined,
+  };
+  if (itemId && mongoose.isValidObjectId(itemId)) {
     try {
       const item = await Item.findById(itemId)
-        .select('originalProductId category reasonText description')
+        .select('originalProductId category reasonText description evidenceForm.schema')
         .lean();
       if (item) {
         productId = productId || (item.originalProductId ? String(item.originalProductId) : undefined);
         category = category || item.category;
         reason = reason || item.reasonText || item.description;
+        const schema = item.evidenceForm && item.evidenceForm.schema;
+        if (schema) fieldCtx = _resolveFieldFromSchema(schema, fieldId);
       }
     } catch (err) {
       console.warn(`[grading] verifyField could not load item ${itemId}: ${err.message}`);
@@ -1016,14 +1298,42 @@ const verifyField = async ({ itemId, fieldId, fieldLabel, expectedSubject,
   }
 
   if (itemId) {
+    // Log the full inspection context so devs can see exactly what will be threaded
+    // into the ML /vision/inspect-field call (aspects, scope, mode, montage).
+    const aspectSummary = fieldCtx.aspects.map((a) =>
+      `${a.kind || '?'}/${a.verifiability || '?'}/${a.importance || '?'}` +
+      (a.expected_subject ? ` "${a.expected_subject}"` : '')
+    ).join(', ') || '(none — will backfill defaults)';
+    const viewsSummary = fieldCtx.requiredViews.length
+      ? fieldCtx.requiredViews.join(', ')
+      : '(none declared)';
     await ItemLogger.log(itemId, 'FIELD_INSPECT_START',
-      `🔎 Submitting field "${fieldId || 'unknown'}" for AI verification — ${photoUrls.length} photo(s)`,
-      { phase: 'inspect', fieldId, expectedSubject, photoCount: photoUrls.length });
+      `🔎 Submitting field "${fieldId || 'unknown'}" for AI verification — ${photoUrls.length} photo(s)` +
+      ` | capture_mode=${fieldCtx.captureMode || 'photo'}, detail=${fieldCtx.detailLevel || 'normal'}` +
+      `, montage=${montage ? 'ON' : 'off'}` +
+      `\nAspects: ${aspectSummary}` +
+      `\nRequired views: ${viewsSummary}` +
+      (fieldCtx.siblingFields.length
+        ? `\nSibling fields (inspector will not demand their evidence): ${fieldCtx.siblingFields.map((s) => s.label || s.id).join(', ')}`
+        : ''),
+      {
+        phase: 'inspect', fieldId, expectedSubject,
+        photoCount: photoUrls.length,
+        captureMode: fieldCtx.captureMode,
+        detailLevel: fieldCtx.detailLevel,
+        montage,
+        aspectCount: fieldCtx.aspects.length,
+        requiredViews: fieldCtx.requiredViews,
+        siblingCount: fieldCtx.siblingFields.length,
+        highestImportance: fieldCtx.highestImportance,
+      });
   }
 
   const angle = _angleFromFieldId(fieldId);
   const { listingData, catalogImageUrls, sellerPrompt } = await _loadCatalogContext(productId, angle);
   const prompts = await _resolvePrompts(category, sellerPrompt);
+  const { body: templateBody, appliedKeys } = await _resolveTemplateOverrides(['evidence_inspection', 'montage']);
+  await _logAppliedTemplateOverrides(itemId, appliedKeys, 'inspect');
 
   try {
     const resp = await axios.post(`${ML_SERVICE_URL}/vision/inspect-field`, {
@@ -1037,9 +1347,21 @@ const verifyField = async ({ itemId, fieldId, fieldLabel, expectedSubject,
       category,
       listing_data: listingData,
       catalog_image_urls: catalogImageUrls,
+      // Dynamic-stepper — declared-scope enforcement context (Req 2.1, 2.4). The
+      // inspector computes missing_views only against `required_views` and consults
+      // `sibling_fields` so it never demands evidence another field covers.
+      aspects: fieldCtx.aspects.length ? fieldCtx.aspects : undefined,
+      required_views: fieldCtx.requiredViews.length ? fieldCtx.requiredViews : undefined,
+      sibling_fields: fieldCtx.siblingFields.length ? fieldCtx.siblingFields : undefined,
+      capture_mode: fieldCtx.captureMode || undefined,
+      detail_level: fieldCtx.detailLevel || undefined,
+      // Dynamic-stepper — montage triage flag (Req 10.3, 10.5); forwarded from
+      // the client request so the DevTools Montage_Toggle controls the ML path.
+      montage: !!montage,
       base_prompt: prompts.base_prompt,
       category_prompt: prompts.category_prompt,
       seller_prompt: prompts.seller_prompt,
+      ...templateBody,
     }, { timeout: 60000 });
 
     const data = resp.data || {};
@@ -1080,6 +1402,10 @@ const verifyField = async ({ itemId, fieldId, fieldLabel, expectedSubject,
           conditionSignals: data.condition_signals || [],
           inspectorModel: data.inspector_model || null,
           inspectorStatus: data.inspector_status || 'ok',
+          // Dynamic-stepper — structured-aspect context + video liveness (9.1 fields).
+          aspects: fieldCtx.aspects.length ? fieldCtx.aspects : undefined,
+          captureMode: fieldCtx.captureMode || undefined,
+          liveness: data.liveness || undefined,
           createdAt: new Date(),
         });
       } else {
@@ -1096,7 +1422,24 @@ const verifyField = async ({ itemId, fieldId, fieldLabel, expectedSubject,
       }
     }
 
+    // Dynamic-stepper — track the verify attempt + two-attempt pass-through (Req 4.1).
+    let fieldState = null;
+    if (itemId) {
+      fieldState = await _recordVerifyAttempt(itemId, fieldId, {
+        accepted: !!data.accepted,
+        highestImportance: fieldCtx.highestImportance,
+      });
+      if (fieldState && !data.accepted && fieldState.status === 'unverified') {
+        await ItemLogger.log(itemId, 'FIELD_PASSTHROUGH',
+          `↪️ Field "${fieldId}" passed through as unverified after ${fieldState.verifyAttempts} failed attempt(s).`,
+          { phase: 'inspect', level: 'warn', fieldId,
+            verifyAttempts: fieldState.verifyAttempts,
+            highestImportance: fieldState.highestImportance });
+      }
+    }
+
     const { trace: _drop, ...payload } = data;
+    if (fieldState) payload.field_state = fieldState;
     return payload;
   } catch (err) {
     if (itemId) {
@@ -1122,7 +1465,21 @@ const verifyField = async ({ itemId, fieldId, fieldLabel, expectedSubject,
         conditionSignals: [],
         inspectorModel: null,
         inspectorStatus: 'unavailable',
+        // Dynamic-stepper — carry the declared-aspect context even when the inspector
+        // was unavailable (no liveness — the ML call never returned).
+        aspects: fieldCtx.aspects.length ? fieldCtx.aspects : undefined,
+        captureMode: fieldCtx.captureMode || undefined,
         createdAt: new Date(),
+      });
+    }
+
+    // Dynamic-stepper — the field is accepted-with-warning, so record it as a
+    // passing verify attempt (Req 4.1) and keep highestImportance for routing (9.3).
+    let fieldState = null;
+    if (itemId) {
+      fieldState = await _recordVerifyAttempt(itemId, fieldId, {
+        accepted: true,
+        highestImportance: fieldCtx.highestImportance,
       });
     }
     return {
@@ -1134,6 +1491,7 @@ const verifyField = async ({ itemId, fieldId, fieldLabel, expectedSubject,
       condition_signals: [],
       inspector_status: 'unavailable',
       reason: err.code || err.message,
+      field_state: fieldState || undefined,
     };
   }
 };
@@ -1353,4 +1711,8 @@ module.exports = {
   inspectPhoto,
   verifyField,
   validateClaim,
+  // Dynamic-stepper (task 9.3): exposed so item.service can resolve a field's
+  // declared aspects (verifiability / importance) for the submit-time human-review
+  // routing decision. Pure read-only helper over the persisted Form_Schema.
+  _resolveFieldFromSchema,
 };

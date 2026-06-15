@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getItemLogs } from '../../services/item.service';
+import { MONTAGE_KEY } from '../../services/dev.service';
 import {
   Terminal, ChevronRight, ChevronLeft, Search, Copy, Download,
   AlertTriangle, CheckCircle2, XCircle, Loader2, Server, Cpu, BookOpen,
@@ -589,6 +590,17 @@ export default function DeveloperLogsSidebar({ itemId }) {
   const [query, setQuery] = useState('');
   const [autoFollow, setAutoFollow] = useState(true);
   const [copied, setCopied] = useState(false);
+  // Montage_Toggle (Req 10.1, 10.2) — init from localStorage, default off.
+  const [montageMode, setMontageMode] = useState(
+    () => localStorage.getItem(MONTAGE_KEY) === 'true'
+  );
+  const toggleMontage = useCallback(() => {
+    setMontageMode((prev) => {
+      const next = !prev;
+      localStorage.setItem(MONTAGE_KEY, String(next));
+      return next;
+    });
+  }, []);
   const scrollRef = useRef(null);
   const pinnedRef = useRef(true);
 
@@ -762,6 +774,32 @@ export default function DeveloperLogsSidebar({ itemId }) {
                       <Download className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                </div>
+
+                {/* Montage_Toggle (Req 10.1, 10.2) */}
+                <div className="flex items-center justify-between py-1 px-1 rounded bg-zinc-900 border border-zinc-800">
+                  <span className="text-[10px] text-zinc-400 font-medium">
+                    🗂️ Montage triage
+                    <span className="ml-1 text-[9px] text-zinc-600">(dev)</span>
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={montageMode}
+                    onClick={toggleMontage}
+                    title="When on, video inspection uses a two-pass montage triage (overview contact sheet → full-res follow-up for flagged frames)"
+                    className={[
+                      'relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none',
+                      montageMode ? 'bg-fuchsia-500' : 'bg-zinc-600',
+                    ].join(' ')}
+                  >
+                    <span
+                      className={[
+                        'inline-block h-3 w-3 transform rounded-full bg-white transition-transform',
+                        montageMode ? 'translate-x-3.5' : 'translate-x-0.5',
+                      ].join(' ')}
+                    />
+                  </button>
                 </div>
 
                 {/* Error spotlight */}

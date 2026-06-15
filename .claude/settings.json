@@ -17,7 +17,36 @@
       "Bash(python -c ' *)",
       "Bash(python -m py_compile ml-service/app/services/form_generator.py ml-service/app/routers/grading.py ml-service/app/models/schemas.py ml-service/app/config.py)",
       "Bash(node --check backend/src/modules/grading/grading.service.js)",
-      "Bash(PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python -c ' *)"
+      "Bash(PYTHONIOENCODING=utf-8 PYTHONUTF8=1 python -c ' *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(grep -rn \"anthropic\\\\|groq\" requirements.txt)",
+      "Bash(grep -n \"GEMINI\\\\|API_KEY\\\\|MODEL\\\\|PROVIDER\" .env.example)",
+      "Bash(curl -s -w \"\\\\nHTTP_STATUS:%{http_code}\\\\n\" \"https://generativelanguage.googleapis.com/v1beta/models?key=AQ.Ab8RN6KHy664Z0TGE1uucOjALjW1acZ_wXYfA2DIel-tQzXSGg\")",
+      "Bash(curl -s https://generativelanguage.googleapis.com/v1beta/models?key=AQ.Ab8RN6KHy664Z0TGE1uucOjALjW1acZ_wXYfA2DIel-tQzXSGg)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess,@{n='Started';e={\\(Get-Process -Id $_.OwningProcess\\).StartTime}} | Format-List)",
+      "Bash(curl -s -w \"\\\\nHTTP:%{http_code}\\\\n\" --max-time 30 http://127.0.0.1:8000/gemini/ping)",
+      "PowerShell($PROFILE)",
+      "PowerShell(. $PROFILE; check-gemini)",
+      "PowerShell(. $PROFILE; kill-servers)",
+      "PowerShell(. $PROFILE; kill-ml-proc)",
+      "PowerShell(Get-ExecutionPolicy -List)",
+      "PowerShell([System.Environment]::GetEnvironmentVariable\\(\"GEMINI_API_KEY\", \"Machine\"\\); [System.Environment]::GetEnvironmentVariable\\(\"GEMINI_API_KEY\", \"User\"\\); $env:GEMINI_API_KEY)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s http://localhost:8000/gemini/ping)",
+      "Bash(curl -s \"http://localhost:8000/debug/config\")",
+      "PowerShell($mlPid = \\(Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1\\).OwningProcess; if \\($mlPid\\) { \\(Get-Process -Id $mlPid\\).MainModule.FileName; \\(gwmi Win32_Process -Filter \"ProcessId=$mlPid\"\\).CommandLine })",
+      "Bash(curl -s -w '\\\\nHTTP:%{http_code}\\\\n' -X POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=AQ.Ab8RN6IutSy60_t9tmP3TdqZj65vQw8P1gVacSax0TosK7lQxQ -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"Reply with OK\"}]}]}')",
+      "Bash(curl -s -w '\\\\nHTTP:%{http_code}\\\\n' -X POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=__TRACKED_VAR__ -H 'Content-Type: application/json' -d '{\"contents\":[{\"parts\":[{\"text\":\"Reply with OK\"}]}]}')",
+      "Bash(netstat -ano)",
+      "Bash(node -c src/modules/prompts/prompt.service.js)",
+      "Bash(node -c src/modules/prompts/prompt.controller.js)",
+      "Bash(node -c src/modules/prompts/prompt.routes.js)",
+      "Bash(npx eslint *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\aryan\\Documents\\WindowsPowerShell"
     ]
   }
 }

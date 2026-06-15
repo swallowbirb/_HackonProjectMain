@@ -60,6 +60,8 @@ class GradingRequest(BaseModel):
     base_prompt: Optional[str] = None
     category_prompt: Optional[str] = None
     seller_prompt: Optional[str] = None
+    # v3 template overrides — additive/optional. When present, prefer over bundled file.
+    pass2_template: Optional[str] = None       # admin-edited pass2_grade_synthesis.txt override
 
 
 # --- Evidence inspection (Pass 1.5 — per upload) ---
@@ -119,6 +121,18 @@ class FieldInspectionRequest(BaseModel):
     base_prompt: Optional[str] = None
     category_prompt: Optional[str] = None
     seller_prompt: Optional[str] = None
+    # v3 dynamic-stepper — the field's declared aspects and the scope the inspector
+    # is allowed to enforce. All additive/optional; absent → legacy behavior.
+    aspects: List[Dict[str, Any]] = []          # the field's declared aspects
+    required_views: List[str] = []              # union of aspect required_views (convenience)
+    sibling_fields: List[Dict[str, str]] = []   # [{id,label,expected_subject}] of other fields
+    capture_mode: Optional[str] = "photo"       # photo | video
+    detail_level: Optional[str] = "normal"      # high | normal
+    # v3 montage triage — additive/optional.
+    montage: bool = False                       # run two-pass montage triage (Req 10.3)
+    montage_template: Optional[str] = None     # admin-edited montage overview prompt override
+    # v3 template overrides — additive/optional. When present, prefer over bundled file.
+    inspection_template: Optional[str] = None  # admin-edited evidence_inspection.txt override
 
 
 class FieldInspectionResponse(BaseModel):
@@ -139,6 +153,11 @@ class FieldInspectionResponse(BaseModel):
     inspector_model: Optional[str] = None
     inspector_status: Optional[str] = None    # ok | unavailable | phash_rejected | unprocessable_image
     trace: List[Dict[str, Any]] = []
+    # v3 dynamic-stepper — additive/optional. `liveness` carries the deterministic
+    # video continuity/theft signal; `flagged_cells` lists montage cell indices the
+    # overview call flagged for full-res follow-up. Absent → legacy behavior.
+    liveness: Optional[Dict[str, Any]] = None
+    flagged_cells: List[int] = []             # montage overview-flagged cell indices
 
 
 class DefectDetail(BaseModel):
@@ -208,6 +227,14 @@ class FormRequest(BaseModel):
     base_prompt: Optional[str] = None
     category_prompt: Optional[str] = None
     seller_prompt: Optional[str] = None
+    # v3 dynamic-stepper — context used to scale the NUMBER and STRICTNESS of the
+    # generated steps/fields/aspects (Req 6.5, 8.5). Both additive/optional; when
+    # absent the form generator renders a neutral default ("unknown") so behavior
+    # is unchanged.
+    trust_tier: Optional[str] = None        # e.g. high | medium | low | new | unknown
+    item_value: Optional[float] = None      # resolved item value (currency units)
+    # v3 template overrides — additive/optional. When present, prefer over bundled file.
+    pass1_template: Optional[str] = None    # admin-edited pass1_form_generation.txt override
 
 
 class FormResponse(BaseModel):

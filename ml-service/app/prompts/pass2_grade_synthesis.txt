@@ -50,6 +50,12 @@ RULES:
   fragment with non-empty `missing_views`, or a v2.34 per-photo fragment with
   identity/subject mismatch reported, or no fragment at all — list that field in
   missingEvidence and set confidence to medium or low (never high).
+- VERIFIABILITY RULE (Req 3.3): if a field's entry includes `"has_unverifiable_claim": true`
+  or any aspect with `"verifiability": "none"`, that claim CANNOT be confirmed from the
+  provided media. For those specific claims you MUST write in your rationale:
+  "cannot be determined from the provided media" and set confidence to medium or low.
+  Do NOT assign a confident grade to a claim that is physically impossible to verify
+  from photos or video — route to human review in your rationale instead.
 - If "warnings" includes "identity_mismatch_reported", treat the item identity as
   unverified: reflect it in the rationale, do not grade higher than C on identity doubt.
 - If a hard or soft fraud signal is present in "fraud", reflect it in the rationale and grade.

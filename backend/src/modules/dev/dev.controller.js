@@ -213,9 +213,166 @@ const resetReturnData = async (req, res, next) => {
   }
 };
 
+/**
+ * DEV ONLY — Quick connectivity probe for the Gemini LLM.
+ *
+ * Proxies to the ML service's /gemini/ping, which sends a trivial prompt to
+ * Gemini and reports success (model + reply) or the exact API error
+ * (e.g. RESOURCE_EXHAUSTED, PERMISSION_DENIED). Lets a dev confirm in one click
+ * whether the LLM API is reachable and within quota.
+ */
+const geminiPing = async (req, res, next) => {
+  try {
+    const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+    const resp = await axios.get(`${ML_SERVICE_URL}/gemini/ping`, { timeout: 30000 });
+    return res.status(200).json({ success: true, ...resp.data });
+  } catch (error) {
+    // ML service unreachable, or it returned a non-2xx. Surface a useful reason.
+    if (error.code === 'ECONNREFUSED') {
+      return res.status(200).json({
+        success: false,
+        ok: false,
+        error: `ML service not running at ${process.env.ML_SERVICE_URL || 'http://localhost:8000'} (ECONNREFUSED).`,
+      });
+    }
+    return res.status(200).json({
+      success: false,
+      ok: false,
+      error: error.response?.data?.detail || error.message || 'Gemini ping failed',
+    });
+  }
+};
+
+/**
+ * DEV ONLY — Skip the AI grading pipeline and assign a grade by hand.
+ *
+ * Lets a developer testing the return/resell flow jump straight from evidence
+ * intake to routing without waiting on (or paying for) the ML pipeline. It:
+ *   1. Upserts a clean, non-flagged Grade for the item (manual grade + reason).
+ *   2. Transitions the Item to GRADED and links the grade (via markGraded).
+ *   3. Runs the routing engine (computeRoutingDecision) so the item moves on.
+ *
+ * Body: {
+ *   itemId            (required)  Mongo ObjectId of the item
+ *   grade             (required)  'A' | 'B' | 'C' | 'D'
+ *   rationale         (optional)  free-text reason for the grade
+ *   confidence        (optional)  'high' | 'medium' | 'low' (default 'high')
+ *   qualityScore      (optional)  0–100 (default derived from grade)
+ *   estimatedResalePct(optional)  0–1   (default derived from grade)
+ *   routingHint       (optional)  'resell'|'refurbish'|'donate'|'liquidate'
+ *   route             (optional)  default true — also run routing after grading
+ * }
+ */
+const GRADE_DEFAULTS = {
+  A: { qualityScore: 95, estimatedResalePct: 0.85, routingHint: 'resell' },
+  B: { qualityScore: 78, estimatedResalePct: 0.6, routingHint: 'resell' },
+  C: { qualityScore: 52, estimatedResalePct: 0.35, routingHint: 'refurbish' },
+  D: { qualityScore: 25, estimatedResalePct: 0.1, routingHint: 'donate' },
+};
+
+const manualGrade = async (req, res, next) => {
+  try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ success: false, message: 'Not allowed in production' });
+    }
+
+    const mongoose = require('mongoose');
+    const itemService = require('../items/item.service');
+    const routingService = require('../routing/routing.service');
+
+    const {
+      itemId, grade, rationale, confidence, qualityScore,
+      estimatedResalePct, routingHint, route = true,
+    } = req.body || {};
+
+    if (!itemId || !mongoose.isValidObjectId(itemId)) {
+      return res.status(400).json({ success: false, message: 'A valid itemId is required' });
+    }
+    const gradeLetter = String(grade || '').toUpperCase();
+    if (!['A', 'B', 'C', 'D'].includes(gradeLetter)) {
+      return res.status(400).json({ success: false, message: "grade must be one of 'A','B','C','D'" });
+    }
+
+    const item = await Item.findById(itemId);
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+
+    const defaults = GRADE_DEFAULTS[gradeLetter];
+    const allowedHints = ['resell', 'refurbish', 'donate', 'liquidate'];
+    const allowedConfidence = ['high', 'medium', 'low'];
+
+    const gradeDoc = {
+      itemId: item._id,
+      userId: mongoose.isValidObjectId(item.initiatorUserId) ? item.initiatorUserId : undefined,
+      productId: mongoose.isValidObjectId(item.originalProductId) ? item.originalProductId : undefined,
+      // Item enum is 'return'|'sell-used'; Grade enum is 'returns'|'sell-used'.
+      intakePath: item.intakePath === 'return' ? 'returns' : 'sell-used',
+      grade: gradeLetter,
+      qualityScore: Number.isFinite(qualityScore) ? Math.max(0, Math.min(100, Math.round(qualityScore))) : defaults.qualityScore,
+      confidence: allowedConfidence.includes(confidence) ? confidence : 'high',
+      defects: [],
+      missingEvidence: [],
+      returnClaimVerified: true,
+      estimatedResalePct: Number.isFinite(estimatedResalePct)
+        ? Math.max(0, Math.min(1, estimatedResalePct))
+        : defaults.estimatedResalePct,
+      routingHint: allowedHints.includes(routingHint) ? routingHint : defaults.routingHint,
+      rationale: (rationale && rationale.trim())
+        ? `[Manual dev grade] ${rationale.trim()}`
+        : `[Manual dev grade] Grade ${gradeLetter} assigned manually via DevTools (AI grading skipped).`,
+      modelVersions: { pass2Model: 'manual-dev-override' },
+      evidenceBundle: { imageUrls: item.evidencePhotos || [] },
+      flaggedForReview: false,
+      reviewReason: '',
+      lifecycleEmission: 'skipped',
+      status: 'ok',
+    };
+
+    const savedGrade = await Grade.findOneAndUpdate(
+      { itemId: item._id },
+      { $set: gradeDoc },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    );
+
+    await ItemLog.create?.({}).catch?.(() => {}); // no-op guard; logging handled below
+
+    // Transition item → GRADED and link the grade (idempotent).
+    await itemService.markGraded(String(item._id), savedGrade);
+
+    // Optionally run routing so the item moves to the routing/disposition stage.
+    let routing = null;
+    if (route) {
+      try {
+        routing = await routingService.computeRoutingDecision(String(item._id));
+      } catch (err) {
+        // Surface but don't fail the whole request — the grade is already saved.
+        return res.status(200).json({
+          success: true,
+          message: `Grade ${gradeLetter} assigned, but routing could not run: ${err.message}`,
+          grade: savedGrade,
+          routing: null,
+          routingError: err.message,
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Grade ${gradeLetter} assigned manually${route ? ' and routed' : ''}.`,
+      grade: savedGrade,
+      routing,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   eraseData,
   populateData,
   saveData,
   resetReturnData,
+  geminiPing,
+  manualGrade,
 };

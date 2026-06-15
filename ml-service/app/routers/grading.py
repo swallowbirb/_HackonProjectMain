@@ -45,6 +45,9 @@ async def generate_evidence_form(request: FormRequest):
         seller_prompt=request.seller_prompt,
         base_prompt=request.base_prompt,
         category_prompt=request.category_prompt,
+        trust_tier=request.trust_tier,
+        item_value=request.item_value,
+        pass1_template=request.pass1_template,
         trace=trace,
     )
     return FormResponse(
@@ -166,6 +169,7 @@ async def grade_item(request: GradingRequest):
             seller_prompt=request.seller_prompt,
             base_prompt=request.base_prompt,
             category_prompt=request.category_prompt,
+            pass2_template=request.pass2_template,
             trace=trace)
     except GradeSynthesisError as exc:
         logger.error("Grade synthesis failed: %s", exc)

@@ -28,6 +28,7 @@ from app.config import settings
 from app.services import prompt_loader, fraud_preflight
 from app.services.gemini import gemini_service, GeminiError, GeminiJSONError
 from app.services.image_utils import try_fetch_image_bytes
+from app.services.montage_utils import tile as _montage_tile, parse_flagged_cells as _parse_flagged_cells
 
 logger = logging.getLogger("ml-service.evidence_inspector")
 
@@ -41,6 +42,80 @@ def _as_str_list(value) -> List[str]:
     if value is None:
         return []
     return [str(value)]
+
+
+def _norm_view(value) -> str:
+    """Normalize a view label for set membership (lowercase + trimmed)."""
+    return str(value or "").strip().lower()
+
+
+def _resolve_required_views(required_views, aspects) -> List[str]:
+    """
+    The declared scope the inspector may enforce. Prefer the explicit
+    ``required_views`` convenience list; otherwise fall back to the union of the
+    ``required_views`` declared by the field's aspects so the filter still works
+    when only ``aspects`` were supplied.
+    """
+    if required_views:
+        return _as_str_list(required_views)
+    out: List[str] = []
+    seen: set = set()
+    for asp in (aspects or []):
+        if not isinstance(asp, dict):
+            continue
+        for v in _as_str_list(asp.get("required_views")):
+            key = _norm_view(v)
+            if key and key not in seen:
+                seen.add(key)
+                out.append(v)
+    return out
+
+
+def _format_required_views(required_views: List[str]) -> str:
+    """Render the declared required views as a readable bullet list for the prompt."""
+    views = [str(v).strip() for v in (required_views or []) if v is not None and str(v).strip()]
+    if not views:
+        return "(none declared — do NOT reject this field for any missing view)"
+    return "\n".join(f"  • {v}" for v in views)
+
+
+def _format_sibling_fields(sibling_fields) -> str:
+    """Render sibling fields as 'label — expected_subject' lines for the prompt."""
+    lines: List[str] = []
+    for sf in (sibling_fields or []):
+        if not isinstance(sf, dict):
+            continue
+        label = str(sf.get("label") or sf.get("id") or "").strip()
+        subject = str(sf.get("expected_subject") or "").strip()
+        if not label and not subject:
+            continue
+        if subject:
+            lines.append(f"  • {label or '(unnamed field)'} — {subject}")
+        else:
+            lines.append(f"  • {label}")
+    if not lines:
+        return "(none declared)"
+    return "\n".join(lines)
+
+
+def _rejection_was_missing_view_only(result: Dict[str, Any], raw_missing: List[str]) -> bool:
+    """
+    True when the LLM's rejection was driven solely by missing views (as opposed to
+    an identity mismatch, every photo being unusable, or a screenshot/catalog set).
+
+    Heuristic on the normalized field result: the model cited at least one missing
+    view, and it did not judge every provided photo unusable. Identity mismatches and
+    all-unusable/screenshot rejections leave ``missing_views`` empty and/or flag every
+    photo ``usable=false``, so they are correctly excluded here.
+    """
+    if not raw_missing:
+        return False
+    per_photo = result.get("per_photo") or []
+    explicit = [p.get("usable") for p in per_photo
+                if isinstance(p, dict) and p.get("usable") is not None]
+    if explicit and all(u is False for u in explicit):
+        return False
+    return True
 
 
 def _normalize(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -231,6 +306,12 @@ async def inspect_field(
     seller_prompt: Optional[str] = None,
     base_prompt: Optional[str] = None,
     category_prompt: Optional[str] = None,
+    aspects: Optional[List[Dict[str, Any]]] = None,
+    required_views: Optional[List[str]] = None,
+    sibling_fields: Optional[List[Dict[str, str]]] = None,
+    montage: bool = False,
+    montage_template: Optional[str] = None,
+    inspection_template: Optional[str] = None,
     trace=None,
 ) -> Dict[str, Any]:
     """
@@ -241,9 +322,13 @@ async def inspect_field(
          Any HARD phash match short-circuits to a field-level reject (stock-photo theft).
       2. Otherwise, ONE multimodal Gemini call with all usable photos + the
          field-level prompt — judges the SET against the field's requirement.
-      3. Returns the field-level decision; never raises.
+      3. Deterministically enforce declared scope: filter ``missing_views`` to the
+         field's declared ``required_views`` and un-reject a field whose only
+         rejection cause was a view it never declared (Req 2.1, 2.2, 2.3).
+      4. Returns the field-level decision; never raises.
     """
     photo_urls = list(photo_urls or [])
+    declared_views = _resolve_required_views(required_views, aspects)
     if not photo_urls:
         return {
             "accepted": False,
@@ -348,9 +433,24 @@ async def inspect_field(
             "inspector_status": "unprocessable_image",
         }
 
-    # --- Step 2: compose prompt + ONE multimodal Gemini call ---
+    # --- Step 2: compose prompt + inspection call(s) ---
+    # Determine the detail_level of each aspect to decide what goes into montage.
+    detail_high_aspects = [
+        a for a in (aspects or []) if isinstance(a, dict) and a.get("detail_level") == "high"
+    ]
+    has_high_detail = bool(detail_high_aspects)
+
+    # Log the video-inspection mode (Req 10.6).
+    inspection_mode = "montage_triage" if montage else "full_res"
+    if trace is not None:
+        trace.info("inspect", "INSPECT_MODE",
+                   f"🎬 Video inspection mode: {inspection_mode}"
+                   f"{' (high-detail aspects will bypass montage)' if montage and has_high_detail else ''}",
+                   mode=inspection_mode, montage=montage, has_high_detail=has_high_detail)
+
     try:
-        template = prompt_loader.load_template("evidence_inspection.txt")
+        template = prompt_loader.load_template("evidence_inspection.txt",
+                                               override=inspection_template)
     except prompt_loader.PromptError as exc:
         logger.warning("Inspection template unavailable: %s", exc)
         result = _accept_field_with_warning(f"inspection prompt unavailable: {exc}",
@@ -377,29 +477,182 @@ async def inspect_field(
         reason=reason or "(none provided)",
         photo_count=len(photo_bytes),
         photo_index=photo_index_block,
+        required_views=_format_required_views(declared_views),
+        sibling_fields=_format_sibling_fields(sibling_fields),
     )
     prompt = prompt_loader.compose(category, body, seller_prompt=seller_prompt,
                                    base_override=base_prompt, category_override=category_prompt)
 
-    try:
-        raw = await gemini_service.invoke_json(
-            prompt,
-            images=[b for _, b in photo_bytes],
-            max_tokens=1200,
-            trace=trace, phase="inspect", label="Evidence Inspector (field)",
-        )
-    except (GeminiError, GeminiJSONError) as exc:
-        if trace is not None:
-            trace.warn("inspect", "INSPECT_DEGRADED",
-                       f"⚠️ Evidence Inspector LLM unavailable ({type(exc).__name__}) — "
-                       "accepting the field with a warning so the user is not blocked.", exc=exc)
-        result = _accept_field_with_warning(f"inspector LLM failed: {exc}",
-                                            [u for u, _ in photo_bytes])
-        result["preflight_per_photo"] = preflight_per_photo
-        return result
+    # --- Montage two-pass path (Req 10.3, 10.4, 10.5) ---
+    # When montage=True and there are multiple frames: build a low-res contact
+    # sheet, run an overview call to identify flagged cells, then do a full-res
+    # follow-up ONLY for flagged frames. Aspects with detail_level=high bypass
+    # the montage entirely and are always sent full-res (Req 10.4).
+    # When montage=False OR only one frame: single full-res pass (Req 10.5).
+    flagged_cells_out: List[int] = []
+    if montage and len(photo_bytes) > 1:
+        try:
+            montage_template_text = prompt_loader.load_template("montage_overview.txt",
+                                                                 override=montage_template)
+            overview_body = montage_template_text.format(
+                field_label=field_label or "the requested view",
+                expected_subject=expected_subject or "the item",
+                required_views=_format_required_views(declared_views),
+                reason=reason or "(none provided)",
+                frame_count=len(photo_bytes),
+            )
+            montage_bytes = _montage_tile([b for _, b in photo_bytes])
+            overview_raw = await gemini_service.invoke_json(
+                overview_body,
+                images=[montage_bytes],
+                max_tokens=400,
+                trace=trace, phase="inspect", label="Evidence Inspector (montage overview)",
+            )
+            flagged_cells_out = _parse_flagged_cells(overview_raw.get("flagged_cells"))
+            if trace is not None:
+                trace.info("inspect", "MONTAGE_OVERVIEW",
+                           f"🗂️ Montage overview complete — {len(flagged_cells_out)} cell(s) flagged "
+                           f"for full-res follow-up: {flagged_cells_out}",
+                           flagged_cells=flagged_cells_out,
+                           overview_notes=overview_raw.get("overview_notes", ""))
+
+            if not flagged_cells_out:
+                # Overview found nothing — accept on the overview alone (Req 10.3 error table).
+                result = _accept_field_with_warning(
+                    "Montage overview found no frames requiring closer inspection — "
+                    "accepting the field on the overview pass.",
+                    [u for u, _ in photo_bytes],
+                    status="ok",
+                )
+                result["preflight_per_photo"] = preflight_per_photo
+                result["flagged_cells"] = []
+                return result
+
+            # Follow-up: inspect only the flagged frames at full resolution.
+            followup_bytes = [
+                photo_bytes[i] for i in flagged_cells_out
+                if 0 <= i < len(photo_bytes)
+            ]
+            # Also always include frames that serve a detail_level=high aspect (Req 10.4).
+            if has_high_detail:
+                # Heuristic: include all frames if we can't map aspects to specific frames.
+                full_res_bytes = [b for _, b in photo_bytes]
+            else:
+                full_res_bytes = [b for _, b in followup_bytes] if followup_bytes else [b for _, b in photo_bytes]
+
+            try:
+                raw = await gemini_service.invoke_json(
+                    prompt,
+                    images=full_res_bytes,
+                    max_tokens=1200,
+                    trace=trace, phase="inspect", label="Evidence Inspector (montage follow-up)",
+                )
+            except (GeminiError, GeminiJSONError) as exc:
+                if trace is not None:
+                    trace.warn("inspect", "INSPECT_DEGRADED",
+                               f"⚠️ Montage follow-up LLM unavailable ({type(exc).__name__}) — "
+                               "accepting the field with a warning.", exc=exc)
+                result = _accept_field_with_warning(f"montage follow-up LLM failed: {exc}",
+                                                    [u for u, _ in photo_bytes])
+                result["preflight_per_photo"] = preflight_per_photo
+                result["flagged_cells"] = flagged_cells_out
+                return result
+
+        except (GeminiError, GeminiJSONError) as exc:
+            if trace is not None:
+                trace.warn("inspect", "MONTAGE_OVERVIEW_DEGRADED",
+                           f"⚠️ Montage overview LLM unavailable ({type(exc).__name__}) — "
+                           "falling back to single full-res pass.", exc=exc)
+            # Fall through to the regular full-res path below.
+            try:
+                raw = await gemini_service.invoke_json(
+                    prompt,
+                    images=[b for _, b in photo_bytes],
+                    max_tokens=1200,
+                    trace=trace, phase="inspect", label="Evidence Inspector (field, montage fallback)",
+                )
+            except (GeminiError, GeminiJSONError) as exc2:
+                result = _accept_field_with_warning(f"inspector LLM failed: {exc2}",
+                                                    [u for u, _ in photo_bytes])
+                result["preflight_per_photo"] = preflight_per_photo
+                return result
+        except ImportError:
+            logger.warning("Pillow not installed — montage disabled, falling back to full-res pass")
+            try:
+                raw = await gemini_service.invoke_json(
+                    prompt,
+                    images=[b for _, b in photo_bytes],
+                    max_tokens=1200,
+                    trace=trace, phase="inspect", label="Evidence Inspector (field, no-pillow fallback)",
+                )
+            except (GeminiError, GeminiJSONError) as exc:
+                result = _accept_field_with_warning(f"inspector LLM failed: {exc}",
+                                                    [u for u, _ in photo_bytes])
+                result["preflight_per_photo"] = preflight_per_photo
+                return result
+    else:
+        # --- Single full-res pass (default / montage off / only one frame) ---
+        try:
+            raw = await gemini_service.invoke_json(
+                prompt,
+                images=[b for _, b in photo_bytes],
+                max_tokens=1200,
+                trace=trace, phase="inspect", label="Evidence Inspector (field)",
+            )
+        except (GeminiError, GeminiJSONError) as exc:
+            if trace is not None:
+                trace.warn("inspect", "INSPECT_DEGRADED",
+                           f"⚠️ Evidence Inspector LLM unavailable ({type(exc).__name__}) — "
+                           "accepting the field with a warning so the user is not blocked.", exc=exc)
+            result = _accept_field_with_warning(f"inspector LLM failed: {exc}",
+                                                [u for u, _ in photo_bytes])
+            result["preflight_per_photo"] = preflight_per_photo
+            return result
 
     result = _normalize_field(raw, [u for u, _ in photo_bytes])
+    result["flagged_cells"] = flagged_cells_out
     result["preflight_per_photo"] = preflight_per_photo
+
+    # --- Step 3: deterministic declared-scope enforcement (defense in depth) ---
+    # The prompt already forbids undeclared views, but we enforce it here too so an
+    # LLM slip can never reject a user for a view the field never declared.
+    #   • Filter missing_views to the declared required_views (Req 2.1, 2.2).
+    #   • When nothing is declared, no view can be "missing" at all.
+    #   • Out-of-scope views the model listed are recorded as observations, never as
+    #     rejection causes (Req 2.3).
+    declared = {_norm_view(v) for v in declared_views}
+    raw_missing = list(result.get("missing_views") or [])
+    if declared:
+        filtered_missing = [v for v in raw_missing if _norm_view(v) in declared]
+    else:
+        filtered_missing = []
+    dropped_views = [v for v in raw_missing if v not in filtered_missing]
+    result["missing_views"] = filtered_missing
+
+    if dropped_views:
+        observations = list(result.get("observations") or [])
+        seen_obs = {o.strip().lower() for o in observations}
+        for v in dropped_views:
+            note = f"Out-of-scope view noted (not required for this field): {v}"
+            if note.strip().lower() not in seen_obs:
+                observations.append(note)
+                seen_obs.add(note.strip().lower())
+        result["observations"] = observations
+
+    # If the field was rejected but, after filtering, nothing genuinely declared is
+    # missing AND the only rejection cause was a missing view (not identity mismatch,
+    # not every photo unusable, not a screenshot/catalog set), un-reject it — we must
+    # never reject for an undeclared view (Req 2.2, 2.3).
+    if result.get("accepted") is False and not filtered_missing \
+            and _rejection_was_missing_view_only(result, raw_missing):
+        result["accepted"] = True
+        result["reupload_reason"] = None
+        if trace is not None:
+            trace.info("inspect", "INSPECT_SCOPE_OVERRIDE",
+                       "🛡️ Field rejection cleared: the only missing view(s) the model "
+                       "raised were not in this field's declared required views — "
+                       "accepting per declared-scope enforcement.",
+                       dropped_views=dropped_views)
 
     # If some photos couldn't be fetched, record them as unusable in per_photo.
     if unfetchable:
@@ -535,6 +788,10 @@ def build_analysis_summary(
             field_level_count += 1
             urls = list(fr.get("image_urls") or [])
             per_photo = fr.get("per_photo") or []
+            # Carry the field's declared aspects and their verifiability into the
+            # summary so Pass 2 can record "cannot be determined from provided media"
+            # for any material verifiability=none claim (Req 3.3, 6.1).
+            stored_aspects = fr.get("aspects") or []
             entry = {
                 "field_label": fr.get("field_label"),
                 "image_urls": urls,
@@ -548,6 +805,12 @@ def build_analysis_summary(
                 "ocr_text_per_photo": fr.get("ocr_text_per_photo") or {},
                 "inspector_status": fr.get("inspector_status"),
                 "preflight_per_photo": fr.get("preflight_per_photo") or {},
+                # v3 dynamic-stepper: aspects + highest verifiability signal (Req 3.3).
+                "aspects": stored_aspects,
+                "has_unverifiable_claim": any(
+                    isinstance(a, dict) and a.get("verifiability") == "none"
+                    for a in stored_aspects
+                ),
             }
             by_field[fid] = entry
             if urls:
@@ -615,15 +878,37 @@ def build_analysis_summary(
     if fraud is not None:
         summary["fraud"] = fraud
 
+    # Collect verifiability signals across all field-level fragments for the trace.
+    unverifiable_fields = [
+        fid for fid, entry in by_field.items()
+        if entry.get("has_unverifiable_claim")
+    ]
+    fields_with_aspects = [
+        fid for fid, entry in by_field.items()
+        if entry.get("aspects")
+    ]
+
     if trace is not None:
+        aspect_note = ""
+        if fields_with_aspects:
+            aspect_note = (
+                f" — {len(fields_with_aspects)} field(s) carry v3 aspects"
+                + (f"; {len(unverifiable_fields)} field(s) have verifiability=none "
+                   f"({', '.join(unverifiable_fields)}) → Pass 2 will record "
+                   "'cannot be determined from provided media'"
+                   if unverifiable_fields else "")
+            )
         trace.info("analysis", "FRAGMENT_SUMMARY",
                    f"🧩 Pass-2 summary assembled: {len(by_field)} field(s), "
                    f"{field_level_count} field-level fragment(s), "
                    f"{photo_level_count} photo-level fragment(s). "
-                   f"Fields: {', '.join(sorted(by_field.keys())) or 'none'}",
+                   f"Fields: {', '.join(sorted(by_field.keys())) or 'none'}"
+                   + aspect_note,
                    field_count=len(by_field),
                    field_level_count=field_level_count,
                    photo_level_count=photo_level_count,
+                   fields_with_aspects=fields_with_aspects,
+                   unverifiable_fields=unverifiable_fields,
                    warnings=warnings)
 
     return summary

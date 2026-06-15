@@ -13,6 +13,11 @@ router.get('/match', demandController.matchDemand);
 
 // Admin demand map — public read (small seeded demo data).
 router.get('/map', demandController.getDemandMap);
+router.get('/peer-buyers', demandController.getPeerBuyerMap);
+router.get('/populator', demandController.getPopulatorConfig);
+router.put('/populator', demandController.savePopulatorConfig);
+router.post('/populator/tags', demandController.addPopulatorTag);
+router.delete('/populator/tags/:tag', demandController.removePopulatorTag);
 router.get('/warehouses', demandController.getWarehouses);
 
 // Buyer "Looking for…" posts — authenticated.
