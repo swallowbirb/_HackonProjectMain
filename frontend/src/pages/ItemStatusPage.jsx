@@ -1,23 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useLocation, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { getItemStatus, updateItemNotes } from '../services/item.service';
+import { useParams, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { getItemStatus } from '../services/item.service';
 import DeveloperLogsSidebar from '../components/shared/DeveloperLogsSidebar';
-import TrustTierBadge from '../components/shared/TrustTierBadge';
-import RoutingRationale from '../components/routing/RoutingRationale';
 import {
-  Loader2, CheckCircle2, Clock, AlertCircle, Recycle, ShoppingBag, Package, ChevronDown, Pencil,
+  Loader2, CheckCircle2, AlertCircle, AlertTriangle, FlaskConical, X,
 } from 'lucide-react';
 
-const STEPS = [
-  { key: 'INITIATED', label: 'Initiated', icon: Package },
-  { key: 'EVIDENCE_PENDING', label: 'Evidence', icon: Clock },
-  { key: 'GRADING', label: 'AI Grading', icon: Recycle },
-  { key: 'GRADED', label: 'Graded', icon: CheckCircle2 },
-  { key: 'ROUTED', label: 'Routed', icon: ShoppingBag },
-];
-
-const STATUS_ORDER = ['INITIATED', 'EVIDENCE_PENDING', 'GRADING', 'GRADED', 'ROUTED', 'IN_TRANSIT', 'LISTED', 'SOLD', 'DONATED', 'LIQUIDATED'];
 const TERMINAL = ['SOLD', 'DONATED', 'LIQUIDATED', 'REJECTED', 'CANCELLED'];
 const POLLING_INTERVAL = 3000;
 
@@ -30,20 +19,10 @@ const GRADE_COLORS = {
 
 export default function ItemStatusPage() {
   const { itemId } = useParams();
-  const location = useLocation();
-  const intakePath = location.state?.intakePath || 'return';
-  const productTitle = location.state?.productTitle || 'Your item';
 
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [rationaleOpen, setRationaleOpen] = useState(false);
-
-  // Previous-owner notes (editable once graded).
-  const [notesDraft, setNotesDraft] = useState('');
-  const [notesInit, setNotesInit] = useState(false);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [notesSaved, setNotesSaved] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -69,37 +48,7 @@ export default function ItemStatusPage() {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  const currentStepIdx = status ? STATUS_ORDER.indexOf(status.status) : 0;
   const grade = status?.grade;
-  const label = intakePath === 'sell-used' ? 'Sell Used' : 'Return';
-
-  // Seed the notes draft once status arrives.
-  useEffect(() => {
-    if (status && !notesInit) {
-      setNotesDraft(status.ownerNotes || '');
-      setNotesInit(true);
-    }
-  }, [status, notesInit]);
-
-  const POST_GRADED = ['GRADED', 'ROUTED', 'IN_TRANSIT', 'LISTED', 'SOLD', 'DONATED', 'LIQUIDATED'];
-  const canAddNotes = status && POST_GRADED.includes(status.status);
-
-  const handleSaveNotes = async () => {
-    setSavingNotes(true);
-    setNotesSaved(false);
-    try {
-      const res = await updateItemNotes(itemId, notesDraft);
-      if (res.success) {
-        setNotesSaved(true);
-        setStatus((cur) => (cur ? { ...cur, ownerNotes: res.data.ownerNotes } : cur));
-        setTimeout(() => setNotesSaved(false), 2500);
-      }
-    } catch {
-      /* surfaced inline below */
-    } finally {
-      setSavingNotes(false);
-    }
-  };
 
   return (
     <div className="flex">
@@ -116,221 +65,142 @@ export default function ItemStatusPage() {
               <Link to="/orders" className="mt-4 inline-block text-sm text-[#FF9900] underline">Back to orders</Link>
             </div>
           ) : (
-            <>
-              {/* Header */}
-              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                  <span className="uppercase tracking-widest font-semibold text-[#FF9900]">{label}</span>
-                  <span>/</span>
-                  <span>Status</span>
-                </div>
-                <h1 className="text-2xl font-black text-gray-900">{status?.product?.title || productTitle}</h1>
-                <p className="text-sm text-gray-500 mt-1">
-                  Current status: <span className="font-semibold text-gray-800">{status?.status?.replace(/_/g, ' ')}</span>
+            <div className="min-h-[60vh] flex flex-col items-center justify-center text-center">
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-md">
+                <motion.div
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 220, damping: 16 }}
+                  className="mb-7 inline-flex"
+                >
+                  <div className="w-20 h-20 rounded-3xl bg-emerald-50 flex items-center justify-center">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                  </div>
+                </motion.div>
+                <h1 className="text-2xl font-black text-gray-900">Your Return Is Processing</h1>
+                <p className="text-base text-gray-600 mt-3">
+                  Check{' '}
+                  <Link to="/orders" className="text-[#FF9900] font-semibold underline underline-offset-2">
+                    Returns &amp; Orders
+                  </Link>{' '}
+                  for more info!
                 </p>
               </motion.div>
-
-              {/* Trust tier */}
-              {status?.trustTier && (
-                <div className="mb-8">
-                  <TrustTierBadge tier={status.trustTier} showMessage />
-                </div>
-              )}
-
-              {/* Step tracker */}
-              <div className="relative mb-10">
-                <div className="absolute top-5 left-5 right-5 h-0.5 bg-gray-100 z-0" />
-                <div className="relative z-10 flex justify-between">
-                  {STEPS.map((step, i) => {
-                    const stepIdx = STATUS_ORDER.indexOf(step.key);
-                    const done = currentStepIdx > stepIdx;
-                    const active = currentStepIdx === stepIdx;
-                    const Icon = step.icon;
-                    return (
-                      <motion.div
-                        key={step.key}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.07 }}
-                        className="flex flex-col items-center gap-2"
-                      >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300
-                          ${done ? 'bg-emerald-500 border-emerald-500 text-white'
-                            : active ? 'bg-[#FF9900] border-[#FF9900] text-black'
-                            : 'bg-white border-gray-200 text-gray-300'}`}
-                        >
-                          {active && !TERMINAL.includes(status?.status) && status?.status === 'GRADING' ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : done ? (
-                            <CheckCircle2 className="w-4 h-4" />
-                          ) : (
-                            <Icon className="w-4 h-4" />
-                          )}
-                        </div>
-                        <span className={`text-[10px] font-semibold text-center leading-tight w-14
-                          ${done ? 'text-emerald-600' : active ? 'text-[#FF9900]' : 'text-gray-300'}`}
-                        >
-                          {step.label}
-                        </span>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Grade results */}
-              {grade ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm"
-                >
-                  <div className="flex items-center gap-4 mb-5">
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white text-3xl font-black ${GRADE_COLORS[grade.grade] || 'bg-zinc-400'}`}>
-                      {grade.grade}
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-400 font-semibold">Quality Score</p>
-                      <p className="text-2xl font-black text-gray-900">{grade.qualityScore}<span className="text-base text-gray-400">/100</span></p>
-                      <p className="text-xs text-gray-500 mt-0.5">Confidence: {grade.confidence}</p>
-                    </div>
-                  </div>
-
-                  {/* Claim verification */}
-                  <div className={`flex items-center gap-2 text-sm font-medium mb-4 px-3 py-2 rounded-xl ${
-                    grade.returnClaimVerified ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'
-                  }`}>
-                    {grade.returnClaimVerified ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                    {grade.returnClaimVerified ? 'Claim verified' : 'Claim could not be verified'}
-                  </div>
-
-                  {/* Defects */}
-                  {grade.defects?.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-semibold text-gray-600 mb-2">Defects found</p>
-                      <ul className="space-y-1">
-                        {grade.defects.map((d, i) => (
-                          <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                            <span className="text-gray-400">•</span>
-                            <span>
-                              <span className="font-medium capitalize">{d.severity}</span>{' '}
-                              {d.type}{d.location ? ` (${d.location})` : ''}
-                              {d.description ? ` — ${d.description}` : ''}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Rationale (expandable) */}
-                  {grade.rationale && (
-                    <div className="border-t border-gray-100 pt-3">
-                      <button
-                        onClick={() => setRationaleOpen((o) => !o)}
-                        className="flex items-center justify-between w-full text-sm font-semibold text-gray-700"
-                      >
-                        AI Rationale
-                        <ChevronDown className={`w-4 h-4 transition-transform ${rationaleOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      {rationaleOpen && (
-                        <p className="text-sm text-gray-600 leading-relaxed mt-2">{grade.rationale}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Routing decision (Phase A) */}
-                  <div className="mt-5">
-                    <RoutingRationale itemId={itemId} />
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key={status?.status}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-gray-50 border border-gray-200 rounded-2xl p-6"
-                >
-                  {status?.status === 'GRADING' && (
-                    <>
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-                          <Recycle className="w-5 h-5 text-[#FF9900]" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-900">AI grading in progress</p>
-                          <p className="text-xs text-gray-500">Results in ~15 seconds</p>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 leading-relaxed">
-                        Our AI is analysing your photos to objectively grade the item's condition.
-                        This page updates automatically.
-                      </p>
-                    </>
-                  )}
-                  {status?.status === 'INITIATED' && (
-                    <p className="text-sm text-gray-600">Your {label.toLowerCase()} has been initiated. Upload your evidence photos to continue.</p>
-                  )}
-                  {status?.status === 'EVIDENCE_PENDING' && (
-                    <p className="text-sm text-gray-600">Photos received. Preparing grading...</p>
-                  )}
-                  {status?.status === 'REJECTED' && (
-                    <p className="text-sm text-red-600">This submission was rejected by our fraud checks and requires manual review.</p>
-                  )}
-                </motion.div>
-              )}
-
-              {/* Previous-owner notes — editable once graded (Phase B). */}
-              {canAddNotes && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white border border-gray-200 rounded-2xl p-5 mt-6"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Pencil className="w-4 h-4 text-[#FF9900]" />
-                    <p className="font-bold text-gray-900 text-sm">Notes for buyers</p>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-                    Add any honest details about this item — how you used it, what's included, why you're parting with it.
-                    These notes appear on the resale listing.
-                  </p>
-                  <textarea
-                    value={notesDraft}
-                    onChange={(e) => setNotesDraft(e.target.value)}
-                    maxLength={2000}
-                    rows={3}
-                    placeholder="e.g. Bought last year, barely used, comes with original box and charger."
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF9900] resize-none"
-                  />
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-[11px] text-gray-400">{notesDraft.length}/2000</span>
-                    <div className="flex items-center gap-2">
-                      {notesSaved && (
-                        <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Saved
-                        </span>
-                      )}
-                      <button
-                        onClick={handleSaveNotes}
-                        disabled={savingNotes}
-                        className="amz-btn-primary px-4 py-1.5 rounded-full text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        {savingNotes ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                        Save notes
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              <p className="text-xs text-gray-300 text-center mt-6">Item ID: {itemId}</p>
-            </>
+            </div>
           )}
         </div>
       </div>
 
       <DeveloperLogsSidebar itemId={itemId} />
+
+      {/* Dev-only: full grade is hidden from the user but visible here for the prototype. */}
+      <DevGradePanel status={status} grade={grade} />
+    </div>
+  );
+}
+
+// --- Dev-only floating panel (bottom-left) showing the hidden grade ---
+function DevGradePanel({ status, grade }) {
+  const isDev = process.env.NODE_ENV !== 'production' || import.meta.env?.DEV;
+  const [open, setOpen] = useState(false);
+  if (!isDev) return null;
+
+  return (
+    <div className="fixed bottom-4 left-4 z-[9999] font-sans">
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white px-4 py-2.5 rounded-full shadow-2xl font-semibold text-xs border border-zinc-700 cursor-pointer"
+      >
+        <FlaskConical className="w-4 h-4 text-amber-400" />
+        <span>Dev: Grade</span>
+      </motion.button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="absolute bottom-14 left-0 w-80 bg-zinc-950/95 backdrop-blur-md border border-zinc-800 rounded-3xl p-5 shadow-2xl text-white space-y-3"
+          >
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <FlaskConical className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-sm">AI Grade (Dev)</h3>
+              </div>
+              <button onClick={() => setOpen(false)} className="text-zinc-500 hover:text-white cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[10px] font-semibold text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1 text-center">
+              Showing only for this prototype
+            </p>
+
+            <div className="text-[11px] text-zinc-400">
+              Status: <span className="font-mono text-zinc-200">{status?.status?.replace(/_/g, ' ') || '—'}</span>
+            </div>
+
+            {grade ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white text-2xl font-black ${GRADE_COLORS[grade.grade] || 'bg-zinc-600'}`}>
+                    {grade.grade}
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-zinc-500 font-semibold">Quality Score</p>
+                    <p className="text-xl font-black text-white">
+                      {grade.qualityScore}<span className="text-sm text-zinc-500">/100</span>
+                    </p>
+                    {grade.confidence != null && (
+                      <p className="text-[10px] text-zinc-500">Confidence: {grade.confidence}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className={`flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-xl ${
+                  grade.returnClaimVerified ? 'bg-emerald-950/40 text-emerald-300' : 'bg-orange-950/40 text-orange-300'
+                }`}>
+                  {grade.returnClaimVerified ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                  {grade.returnClaimVerified ? 'Claim verified' : 'Claim not verified'}
+                </div>
+
+                {grade.defects?.length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1">Defects</p>
+                    <ul className="space-y-1">
+                      {grade.defects.map((d, i) => (
+                        <li key={i} className="text-[11px] text-zinc-300 flex items-start gap-1.5">
+                          <span className="text-zinc-600">•</span>
+                          <span>
+                            <span className="font-medium capitalize">{d.severity}</span>{' '}
+                            {d.type}{d.location ? ` (${d.location})` : ''}
+                            {d.description ? ` — ${d.description}` : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {grade.rationale && (
+                  <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-2.5">
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1">AI Rationale</p>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">{grade.rationale}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-[11px] text-zinc-500 bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
+                <AlertTriangle className="w-3.5 h-3.5 text-zinc-600" />
+                <span>No grade yet — still processing in the background.</span>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -41,6 +41,45 @@ const STATUS_META = {
   REJECTED:         { label: 'Rejected',         color: 'bg-red-100 text-red-600' },
 };
 
+// Has the reseller advanced the route checkpoint past pickup? The resale route
+// tracker persists its checkpoint index in localStorage (resellRoute:<itemId>),
+// so once they "Advance" past "Picked up", the customer's refund is issued.
+const isPickedUp = (itemId) => {
+  try { return Number(localStorage.getItem(`resellRoute:${itemId}`)) >= 1; }
+  catch { return false; }
+};
+
+// Buyer-facing status — we deliberately hide the AI grade / internal routing
+// state from the customer. Returns read as "we'll pick it up soon" until the
+// reseller picks it up, at which point the refund is issued. Grade lives only in
+// the dev panel.
+const buyerItemStatus = (item) => {
+  const s = item.status;
+  const isReturn = item.intakePath === 'return';
+  if (['CANCELLED', 'REJECTED'].includes(s)) return { badge: STATUS_META[s]?.label || s, tone: 'bad', note: null };
+  if (['INITIATED', 'EVIDENCE_PENDING'].includes(s)) {
+    return { badge: 'Action needed', tone: 'pending', note: 'Add your photos to continue.' };
+  }
+  // Submitted & processing. Once picked up from the customer, the return is refunded.
+  if (isReturn && isPickedUp(item._id)) {
+    return { badge: 'Refunded', tone: 'refunded', note: 'Refund issued — money is back in your account.' };
+  }
+  if (s === 'SOLD') return { badge: 'Complete', tone: 'good', note: null };
+  if (['DONATED', 'LIQUIDATED'].includes(s)) return { badge: 'Resolved', tone: 'good', note: null };
+  return {
+    badge: 'Processing',
+    tone: 'good',
+    note: isReturn ? 'Your return will be picked up soon.' : 'We’re preparing your listing.',
+  };
+};
+
+const BUYER_TONE = {
+  good: 'bg-emerald-100 text-emerald-700',
+  refunded: 'bg-emerald-500 text-white',
+  pending: 'bg-amber-100 text-amber-700',
+  bad: 'bg-red-100 text-red-600',
+};
+
 export default function BuyerOrdersPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('orders');
@@ -60,15 +99,6 @@ export default function BuyerOrdersPage() {
   // Live order tracking — which order the left sidebar rail is following.
   const [trackedOrderId, setTrackedOrderId] = useState(null);
   const trackedOrder = orders.find((o) => o._id === trackedOrderId) || null;
-
-  // Pick a sensible default order to track: the first still-in-flight one.
-  const pickDefaultTracked = (list) => {
-    if (!list || list.length === 0) return null;
-    const inFlight = list.find(
-      (o) => o.status !== 'cancelled' && (o.fulfillmentStatus || 'placed') !== 'delivered'
-    );
-    return (inFlight || list[0])._id;
-  };
 
   const patchOrder = (orderId, fields) =>
     setOrders((prev) => prev.map((o) => (o._id === orderId ? { ...o, ...fields } : o)));
@@ -124,7 +154,6 @@ export default function BuyerOrdersPage() {
         ]);
         if (ordersRes.success) {
           setOrders(ordersRes.data.orders);
-          setTrackedOrderId((cur) => cur || pickDefaultTracked(ordersRes.data.orders));
         }
         if (itemsRes.success) setMyItems(itemsRes.data);
       } catch (err) {
@@ -150,6 +179,7 @@ export default function BuyerOrdersPage() {
 
   const handleInitiateReturn = async () => {
     if (!reasonCode) { setReturnError('Please select a reason.'); return; }
+    if (!reasonText.trim()) { setReturnError('Please describe what went wrong.'); return; }
     setSubmitting(true);
     setReturnError(null);
     try {
@@ -187,16 +217,18 @@ export default function BuyerOrdersPage() {
     <>
       <div className="max-w-6xl mx-auto px-4 py-8 font-sans flex gap-6 items-start">
 
-        {/* ── Live tracking rail (sticky, left) ── */}
-        <aside className="hidden lg:block w-72 flex-shrink-0">
-          <div className="sticky top-24">
-            <OrderTrackingSidebar
-              order={trackedOrder}
-              advancing={trackedOrder ? actionOrderId === trackedOrder._id : false}
-              onAdvance={trackedOrder ? () => handleAdvanceFulfillment(trackedOrder) : undefined}
-            />
-          </div>
-        </aside>
+        {/* ── Live tracking rail (sticky, left) — only shown when an order is selected ── */}
+        {trackedOrderId && (
+          <aside className="hidden lg:block w-72 flex-shrink-0">
+            <div className="sticky top-24">
+              <OrderTrackingSidebar
+                order={trackedOrder}
+                advancing={trackedOrder ? actionOrderId === trackedOrder._id : false}
+                onAdvance={trackedOrder ? () => handleAdvanceFulfillment(trackedOrder) : undefined}
+              />
+            </div>
+          </aside>
+        )}
 
         {/* ── Main column ── */}
         <div className="flex-1 min-w-0">
@@ -268,7 +300,7 @@ export default function BuyerOrdersPage() {
                 return (
                   <div
                     key={order._id}
-                    onClick={() => setTrackedOrderId(order._id)}
+                    onClick={() => setTrackedOrderId((prev) => prev === order._id ? null : order._id)}
                     className={`bg-white rounded-2xl border overflow-hidden shadow-sm cursor-pointer transition-all ${
                       trackedOrderId === order._id
                         ? 'border-[#FF9900] ring-2 ring-[#FF9900]/30'
@@ -444,10 +476,10 @@ export default function BuyerOrdersPage() {
           ) : (
             <div className="space-y-3">
               {myItems.map((item) => {
-                const meta = STATUS_META[item.status] || { label: item.status, color: 'bg-gray-100 text-gray-600' };
                 const isReturn = item.intakePath === 'return';
                 const title = item.originalProductId?.title || 'Item';
                 const isTerminal = ['SOLD', 'DONATED', 'LIQUIDATED', 'CANCELLED', 'REJECTED'].includes(item.status);
+                const bs = buyerItemStatus(item);
 
                 return (
                   <motion.div
@@ -472,11 +504,17 @@ export default function BuyerOrdersPage() {
                         <p className="text-xs text-gray-400">{new Date(item.createdAt).toLocaleDateString()}</p>
                       </div>
                       <p className="font-semibold text-gray-900 text-sm truncate">{title}</p>
+                      {bs.note && (
+                        <p className={`text-xs mt-0.5 flex items-center gap-1 ${bs.tone === 'refunded' ? 'text-emerald-700 font-semibold' : bs.tone === 'good' ? 'text-emerald-600' : bs.tone === 'pending' ? 'text-amber-600' : 'text-gray-500'}`}>
+                          {bs.tone === 'refunded' ? <Banknote className="w-3.5 h-3.5" /> : bs.tone === 'good' ? <Truck className="w-3.5 h-3.5" /> : null}
+                          {bs.note}
+                        </p>
+                      )}
                     </div>
 
-                    {/* Status badge */}
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${meta.color}`}>
-                      {meta.label}
+                    {/* Buyer-facing status badge (grade/routing hidden) */}
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${BUYER_TONE[bs.tone] || 'bg-gray-100 text-gray-600'}`}>
+                      {bs.badge}
                     </span>
 
                     {/* Link to status page (only if not terminal) */}
@@ -547,12 +585,12 @@ export default function BuyerOrdersPage() {
 
               <div className="mb-5">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Additional details <span className="text-gray-400 font-normal">(optional)</span>
+                  What went wrong? <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={reasonText}
                   onChange={(e) => setReasonText(e.target.value)}
-                  placeholder="Describe the issue..."
+                  placeholder="Tell us what's wrong with the item..."
                   rows={3}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF9900] resize-none"
                 />

@@ -9,8 +9,40 @@ import {
   PlusCircle, Package, Activity, AlertTriangle, CheckCircle, Clock,
   AlertCircle, Shield, Tag, ChevronRight, Loader2, Store, Users,
   ShoppingBag, Zap, ExternalLink, Trash2, ToggleLeft, ToggleRight, X,
-  Recycle, Check, Pencil,
+  Recycle, Check, Pencil, Truck, MapPin, Send, Users2, EyeOff, Eye,
 } from 'lucide-react';
+
+// Local-only "hide" so testing clutter can be tucked away without touching the DB.
+const HIDDEN_KEY = 'seller_hidden_listings';
+const loadHidden = () => {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); }
+  catch { return new Set(); }
+};
+const saveHidden = (set) => {
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set])); } catch { /* ignore */ }
+};
+const hideKey = (type, id) => `${type}:${id}`;
+
+/**
+ * Human-readable summary of the routing decision tree for the seller. The seller
+ * never tunes routing — they just see what the platform will do on publish.
+ */
+const resaleRoutePlan = (listing) => {
+  const r = listing.routing;
+  if (!r) return { label: 'Resale', sub: "We'll route it when you publish", Icon: Recycle };
+  if (r.peerRedistribute) {
+    return {
+      label: 'Local peer handoff',
+      sub: r.matchWindowHours ? `${r.matchWindowHours}h match window nearby` : 'Direct to a nearby buyer',
+      Icon: Users2,
+    };
+  }
+  if (r.warehouse) {
+    return { label: `Ship to ${r.warehouse.city}`, sub: r.warehouse.name, Icon: Truck };
+  }
+  const map = { resell: 'Resell via hub', refurbish: 'Refurbish & resell' };
+  return { label: map[r.chosenPath] || 'Resell', sub: `Nearby demand: ${r.demandCount}`, Icon: MapPin };
+};
 import { useCustomUser } from '../context/CustomUserContext';
 import ReturnInsightsPanel from '../components/prevention/ReturnInsightsPanel';
 
@@ -105,8 +137,25 @@ const SellerDashboard = () => {
   const [applyingId, setApplyingId] = useState(null);
   const [applyError, setApplyError] = useState('');
   const [showListingModal, setShowListingModal] = useState(false);
+  const [hiddenIds, setHiddenIds] = useState(loadHidden);
   const navigate = useNavigate();
   const { mongoUser } = useCustomUser();
+
+  const isHidden = (type, id) => hiddenIds.has(hideKey(type, id));
+  const hideListing = (type, id) => {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(hideKey(type, id));
+      saveHidden(next);
+      return next;
+    });
+  };
+  const restoreHidden = () => {
+    setHiddenIds(() => { saveHidden(new Set()); return new Set(); });
+  };
+
+  const visibleProducts = products.filter((p) => !isHidden('product', p._id));
+  const visibleResale = resaleListings.filter((l) => !isHidden('resale', l._id));
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -484,7 +533,7 @@ const SellerDashboard = () => {
               <div className="overflow-x-auto">
                 {isLoadingProducts ? (
                   <div className="p-8 text-center text-gray-500">Loading products...</div>
-                ) : products.length === 0 ? (
+                ) : visibleProducts.length === 0 ? (
                   <div className="p-12 text-center flex flex-col items-center">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                       <Package className="w-8 h-8 text-gray-400" />
@@ -510,7 +559,7 @@ const SellerDashboard = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {products.map((product) => (
+                      {visibleProducts.map((product) => (
                         <motion.tr
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
@@ -545,6 +594,13 @@ const SellerDashboard = () => {
                                 className="text-sm text-[#007185] hover:text-[#C7511F] transition-colors"
                               >
                                 Edit
+                              </button>
+                              <button
+                                onClick={() => hideListing('product', product._id)}
+                                className="text-gray-400 hover:text-gray-700 transition-colors"
+                                title="Hide from view"
+                              >
+                                <EyeOff className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteProduct(product._id)}
@@ -705,139 +761,188 @@ const SellerDashboard = () => {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 flex items-start gap-3">
-                <Recycle className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
+                <Recycle className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-emerald-400">Second-Life Resale Listings</p>
-                  <p className="text-xs text-zinc-400 mt-0.5 leading-relaxed">
-                    Graded items routed for resale appear here as drafts. Review the AI grade, tune the price,
-                    then publish to the Second-Life Marketplace.
+                  <p className="text-sm font-semibold text-emerald-700">Second-Life Resale Drafts</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    When a customer's return is graded as resellable, we push you a ready-to-go draft —
+                    photos, condition story, and a suggested price are filled in for you.
+                    Just <span className="font-semibold text-gray-700">adjust the price if you like</span> and
+                    <span className="font-semibold text-gray-700"> publish</span> — we handle all the routing
+                    (peer handoff, warehouse, delivery) for you.
                   </p>
                 </div>
               </div>
 
               {isLoadingResale ? (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-12 flex items-center justify-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+                <div className="bg-white border border-gray-200 rounded-2xl p-12 flex items-center justify-center shadow-sm">
+                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 </div>
-              ) : resaleListings.length === 0 ? (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-12 text-center">
-                  <Recycle className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-bold mb-2">No Resale Listings Yet</h3>
-                  <p className="text-zinc-400 text-sm">Graded items routed for resale will show up here automatically.</p>
+              ) : visibleResale.length === 0 ? (
+                <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">
+                  <Recycle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">No Resale Drafts Yet</h3>
+                  <p className="text-gray-500 text-sm">Graded returns routed for resale will show up here automatically.</p>
                 </div>
               ) : (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-                  <div className="p-5 border-b border-zinc-800">
-                    <h2 className="font-bold text-lg">My Resale Listings ({resaleListings.length})</h2>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="bg-zinc-800/50 text-xs text-zinc-400 border-b border-zinc-800">
-                        <tr>
-                          <th className="px-4 py-3 font-medium">Item</th>
-                          <th className="px-4 py-3 font-medium">Grade</th>
-                          <th className="px-4 py-3 font-medium">Demand</th>
-                          <th className="px-4 py-3 font-medium">Suggested</th>
-                          <th className="px-4 py-3 font-medium">Price</th>
-                          <th className="px-4 py-3 font-medium">Status</th>
-                          <th className="px-4 py-3 font-medium text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {resaleListings.map((listing) => {
-                          const statusStyle = {
-                            DRAFT: 'bg-zinc-700 text-zinc-300',
-                            PUBLISHED: 'bg-emerald-500/10 text-emerald-400',
-                            UNLISTED: 'bg-amber-500/10 text-amber-400',
-                            SOLD: 'bg-blue-500/10 text-blue-400',
-                          }[listing.status] || 'bg-zinc-700 text-zinc-400';
-                          const isEditing = editingPriceId === listing._id;
-                          const busy = resaleBusyId === listing._id;
-                          return (
-                            <motion.tr
-                              key={listing._id}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors"
-                            >
-                              <td className="px-4 py-3 max-w-[220px]">
+                <div className="space-y-3">
+                  {visibleResale.map((listing) => {
+                    const statusStyle = {
+                      DRAFT: 'bg-amber-100 text-amber-700',
+                      PUBLISHED: 'bg-emerald-100 text-emerald-700',
+                      UNLISTED: 'bg-gray-100 text-gray-500',
+                      SOLD: 'bg-blue-100 text-blue-700',
+                    }[listing.status] || 'bg-gray-100 text-gray-500';
+                    const statusLabel = { DRAFT: 'Draft', PUBLISHED: 'Live', UNLISTED: 'Unlisted', SOLD: 'Sold' }[listing.status] || listing.status;
+                    const isEditing = editingPriceId === listing._id;
+                    const busy = resaleBusyId === listing._id;
+                    const isDraft = listing.status === 'DRAFT';
+                    const plan = resaleRoutePlan(listing);
+                    const gradeColor = { A: 'bg-emerald-500', B: 'bg-blue-500', C: 'bg-orange-500', D: 'bg-red-500' }[listing.grade] || 'bg-gray-400';
+
+                    return (
+                      <motion.div
+                        key={listing._id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+                      >
+                        <div className="p-5 flex flex-col sm:flex-row gap-4">
+                          {/* Thumbnail */}
+                          <div className="w-20 h-20 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {listing.images?.[0] ? (
+                              <img src={listing.images[0]} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Package className="w-7 h-7 text-gray-300" />
+                            )}
+                          </div>
+
+                          {/* Main */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
                                 <Link
                                   to={`/resale/${listing._id}`}
-                                  className="font-medium text-sm text-zinc-200 hover:text-emerald-400 transition-colors flex items-center gap-1 group"
+                                  className="font-bold text-sm text-gray-900 hover:text-emerald-600 transition-colors flex items-center gap-1 group"
                                 >
                                   <span className="truncate">{listing.title}</span>
                                   <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                                 </Link>
-                                <p className="text-xs text-zinc-500 mt-0.5">{listing.category} · {listing.conditionLane}</p>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className="text-sm font-bold text-white">{listing.grade}</span>
-                                <span className="text-xs text-zinc-500"> · {listing.qualityScore}/100</span>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-zinc-300">{listing.demandCount}</td>
-                              <td className="px-4 py-3 text-sm text-zinc-400">₹{Number(listing.suggestedPrice).toLocaleString()}</td>
-                              <td className="px-4 py-3">
-                                {isEditing ? (
-                                  <div className="flex items-center gap-1">
-                                    <input
-                                      type="number"
-                                      value={priceDraft}
-                                      onChange={(e) => setPriceDraft(e.target.value)}
-                                      className="w-24 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                      autoFocus
-                                    />
-                                    <button onClick={() => handleSavePrice(listing._id)} disabled={busy} className="text-emerald-400 hover:text-emerald-300 p-1" title="Save">
-                                      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                                    </button>
-                                    <button onClick={() => { setEditingPriceId(null); setPriceDraft(''); }} className="text-zinc-500 hover:text-zinc-300 p-1" title="Cancel">
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => { setEditingPriceId(listing._id); setPriceDraft(String(listing.price)); }}
-                                    disabled={listing.status === 'SOLD'}
-                                    className="flex items-center gap-1.5 text-sm font-bold text-white hover:text-emerald-400 transition-colors disabled:opacity-50"
-                                    title="Edit price"
-                                  >
-                                    ₹{Number(listing.price).toLocaleString()}
-                                    <Pencil className="w-3 h-3 text-zinc-500" />
-                                  </button>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle}`}>
-                                  {listing.status}
+                                <p className="text-xs text-gray-500 mt-0.5">{listing.category} · {listing.conditionLane}</p>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${statusStyle}`}>
+                                  {statusLabel}
                                 </span>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                {listing.status === 'DRAFT' || listing.status === 'UNLISTED' ? (
+                                <button
+                                  onClick={() => hideListing('resale', listing._id)}
+                                  className="text-gray-300 hover:text-gray-600 transition-colors"
+                                  title="Hide from view"
+                                >
+                                  <EyeOff className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* AI grade + routing plan (read-only decision-tree output) */}
+                            <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-full pl-1 pr-2.5 py-0.5">
+                                <span className={`w-5 h-5 rounded-full ${gradeColor} text-white flex items-center justify-center text-[10px] font-black`}>
+                                  {listing.grade}
+                                </span>
+                                <span className="text-gray-600">AI grade · {listing.qualityScore}/100</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1">
+                                <plan.Icon className="w-3.5 h-3.5" />
+                                {plan.label}
+                              </span>
+                              <span className="text-[11px] text-gray-400">{plan.sub}</span>
+                            </div>
+
+                            {/* Pricing + actions */}
+                            <div className="flex flex-wrap items-end justify-between gap-3 mt-3 pt-3 border-t border-gray-100">
+                              <div className="flex items-end gap-4">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">Suggested</p>
+                                  <p className="text-sm text-gray-400 line-through">₹{Number(listing.suggestedPrice).toLocaleString()}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">Your price</p>
+                                  {isEditing ? (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-gray-500 text-sm">₹</span>
+                                      <input
+                                        type="number"
+                                        value={priceDraft}
+                                        onChange={(e) => setPriceDraft(e.target.value)}
+                                        className="w-24 bg-white border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                        autoFocus
+                                      />
+                                      <button onClick={() => handleSavePrice(listing._id)} disabled={busy} className="text-emerald-600 hover:text-emerald-700 p-1" title="Save">
+                                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                      </button>
+                                      <button onClick={() => { setEditingPriceId(null); setPriceDraft(''); }} className="text-gray-400 hover:text-gray-600 p-1" title="Cancel">
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => { setEditingPriceId(listing._id); setPriceDraft(String(listing.price)); }}
+                                      disabled={listing.status === 'SOLD'}
+                                      className="flex items-center gap-1.5 text-lg font-black text-gray-900 hover:text-emerald-600 transition-colors disabled:opacity-50"
+                                      title="Adjust price"
+                                    >
+                                      ₹{Number(listing.price).toLocaleString()}
+                                      <Pencil className="w-3.5 h-3.5 text-gray-400" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* The seller can ONLY adjust price or publish a draft — routing is on us. */}
+                              <div className="flex items-center gap-2">
+                                {isDraft ? (
                                   <button
                                     onClick={() => handlePublishResale(listing._id)}
                                     disabled={busy}
-                                    className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full font-medium hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                                    className="inline-flex items-center gap-1.5 text-sm bg-[#FF9900] hover:bg-[#FFB347] text-black px-4 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 shadow-sm"
                                   >
-                                    {busy ? '…' : 'Publish'}
+                                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                    {busy ? 'Publishing…' : 'Publish & let us route it'}
                                   </button>
                                 ) : listing.status === 'PUBLISHED' ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
+                                      <CheckCircle className="w-3.5 h-3.5" /> Routing handled by us
+                                    </span>
+                                    <button
+                                      onClick={() => handleUnlistResale(listing._id)}
+                                      disabled={busy}
+                                      className="text-xs text-gray-400 hover:text-red-600 px-2 py-1 transition-colors disabled:opacity-50"
+                                    >
+                                      {busy ? '…' : 'Unlist'}
+                                    </button>
+                                  </div>
+                                ) : listing.status === 'UNLISTED' ? (
                                   <button
-                                    onClick={() => handleUnlistResale(listing._id)}
+                                    onClick={() => handlePublishResale(listing._id)}
                                     disabled={busy}
-                                    className="text-xs bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1 rounded-full font-medium hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                                    className="inline-flex items-center gap-1.5 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold transition-colors disabled:opacity-50"
                                   >
-                                    {busy ? '…' : 'Unlist'}
+                                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                    Re-publish
                                   </button>
                                 ) : (
-                                  <span className="text-xs text-zinc-600">—</span>
+                                  <span className="text-xs text-gray-400">Sold</span>
                                 )}
-                              </td>
-                            </motion.tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               )}
             </motion.div>
@@ -1010,6 +1115,27 @@ const SellerDashboard = () => {
 
         </AnimatePresence>
       </div>
+
+      {/* Restore all locally-hidden listings (testing clutter control). */}
+      <AnimatePresence>
+        {hiddenIds.size > 0 && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={restoreHidden}
+            title={`Restore ${hiddenIds.size} hidden listing${hiddenIds.size > 1 ? 's' : ''}`}
+            className="fixed bottom-4 left-4 z-[9998] w-12 h-12 rounded-full bg-gray-500 hover:bg-gray-600 text-white shadow-2xl flex items-center justify-center transition-colors"
+          >
+            <Eye className="w-5 h-5" />
+            <span className="absolute -top-1 -right-1 bg-[#FF9900] text-black text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+              {hiddenIds.size}
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

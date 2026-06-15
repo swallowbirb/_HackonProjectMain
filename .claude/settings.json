@@ -43,7 +43,16 @@
       "Bash(node -c src/modules/prompts/prompt.service.js)",
       "Bash(node -c src/modules/prompts/prompt.controller.js)",
       "Bash(node -c src/modules/prompts/prompt.routes.js)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(node -e \"require\\('./src/modules/resale/resale.service.js'\\); require\\('./src/modules/brandCatalog/brandCatalogEntry.model.js'\\); require\\('./src/modules/returns/return.model.js'\\); console.log\\('OK'\\)\")",
+      "Bash(cd /c/Dev/_HackonProjectMain/backend && grep -rn \"buildShipmentPlan\\\\|startShipment\\\\|shipment.startedAt\\\\|markPickup\\\\|advanceShipment\\\\|\\\\.shipment\" src/modules/routing/*.js | head -40)",
+      "Read(//c/c/Dev/_HackonProjectMain/backend/src/modules/**)",
+      "Bash(cd /c/Dev/_HackonProjectMain/frontend && grep -rn \"onPickup\\\\|Pickup\\\\|pickup\\\\|advanceCheckpoint\\\\|Advance Checkpoint\\\\|markPicked\\\\|/pickup\\\\|shipment\" src/pages/reseller src/components/reseller src/services 2>/dev/null | head -40)",
+      "Read(//c/c/Dev/_HackonProjectMain/frontend/src/pages/**)",
+      "Bash(ls backend/src/modules/reseller)",
+      "Bash(grep -rln \"onPickup\\\\|pickup\\\\|Pickup\\\\|markPicked\\\\|in_transit\" frontend/src/pages/reseller frontend/src/services)",
+      "Bash(cd /c/Dev/_HackonProjectMain/frontend && grep -rn \"Advance\\\\|advance\\\\|Checkpoint\\\\|checkpoint\\\\|refund\\\\|Refund\\\\|Picked\\\\|picked\" src/pages/reseller src/components/reseller src/components/shared/RouteCheckpointTracker.jsx src/components/routing 2>/dev/null | head -40)",
+      "Read(//c/c/Dev/_HackonProjectMain/frontend/src/components/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\aryan\\Documents\\WindowsPowerShell"
