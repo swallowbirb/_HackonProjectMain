@@ -1,4 +1,5 @@
 import api from './api';
+import { API_URL } from '../config/env.js';
 
 /**
  * User impact summary — CO2/water totals + green-credit balance + recent ledger.
@@ -45,8 +46,7 @@ export const donateItem = async (itemId, location) => {
  * Absolute URL for the donation receipt PDF (open in a new tab / download).
  */
 export const getReceiptUrl = (itemId) => {
-  const base = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  return `${base}/sustainability/receipt/${itemId}`;
+  return `${API_URL}/sustainability/receipt/${itemId}`;
 };
 
 /**

@@ -6,7 +6,7 @@ const { emitGraded } = require('./lifecycleEmitter');
 const ItemLogger = require('../../utils/itemLogger');
 const promptService = require('../prompts/prompt.service');
 
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+const { ML_SERVICE_URL } = require('../../config/urls');
 const ML_TIMEOUT_MS = parseInt(process.env.ML_TIMEOUT_MS || '120000', 10); // analysis fanout alone can take 60s; keep well above internal budgets
 const ML_GRADE_ENDPOINT = `${ML_SERVICE_URL}/grade/`;
 

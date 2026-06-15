@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { ML_SERVICE_URL } = require('../../config/urls');
 const User = require('../users/user.model');
 const Brand = require('../brands/brand.model');
 const BrandCatalogEntry = require('../brandCatalog/brandCatalogEntry.model');
@@ -250,13 +251,10 @@ const resetReturnData = async (req, res, next) => {
  */
 const geminiPing = async (req, res, next) => {
   try {
-    const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
     const resp = await axios.get(`${ML_SERVICE_URL}/gemini/ping`, { timeout: 30000 });
     return res.status(200).json({ success: true, ...resp.data });
   } catch (error) {
     // ML service unreachable, or it returned a non-2xx. Surface a useful reason.
-    const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
-    
     if (error.code === 'ECONNREFUSED') {
       return res.status(200).json({
         success: false,

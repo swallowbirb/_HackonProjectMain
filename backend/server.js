@@ -7,6 +7,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 
 const connectDB = require("./src/config/database");
+const { isOriginAllowed } = require("./src/config/urls");
 const { errorHandler } = require("./src/middleware/error.middleware");
 
 // Routes
@@ -40,40 +41,24 @@ const resaleRoutes = require("./src/modules/resale/resale.routes");
 
 const app = express();
 
+// Render / reverse-proxy — required for correct client IPs and secure cookies
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Database Connection
 connectDB();
 
 // Middleware
 app.use(helmet());
 
-// CORS — allow the frontend origin (Phase 3.5). In development we accept the
-// configured FRONTEND_URL plus common Vite ports; falls back to permissive if unset.
-// In production, allow Vercel deployments (production + previews) plus FRONTEND_URL.
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-  'http://localhost:5001',
-].filter(Boolean);
-
-// Patterns for allowed origins (supports Vercel preview deployments and Render)
-const allowedOriginPatterns = [
-  /^https:\/\/.*\.vercel\.app$/,  // Any Vercel deployment
-  /^https:\/\/.*\.onrender\.com$/,  // Any Render deployment
-];
-
+// CORS — origins from CORS_ORIGINS, FRONTEND_URL, BACKEND_URL, ML_SERVICE_URL (see urls.js).
+// Wildcard *.vercel.app and *.onrender.com are also allowed in production.
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow non-browser tools (no origin) and any whitelisted origin.
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      // Match against patterns (Vercel preview URLs)
-      if (allowedOriginPatterns.some((pattern) => pattern.test(origin))) {
-        return callback(null, true);
-      }
-      // In development, be permissive so the team isn't blocked by port drift.
+      if (isOriginAllowed(origin)) return callback(null, true);
       if (process.env.NODE_ENV !== 'production') return callback(null, true);
       return callback(new Error(`CORS: origin ${origin} not allowed`));
     },

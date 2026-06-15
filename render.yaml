@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: second-life-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ML_SERVICE_URL
+        value: https://second-life-ml.onrender.com
+      - key: FRONTEND_URL
+        value: https://second-life-tau.vercel.app
+      - key: BACKEND_URL
+        value: https://second-life-api.onrender.com
+      - key: CORS_ORIGINS
+        value: https://second-life-tau.vercel.app,https://second-life-ml.onrender.com,https://second-life-api.onrender.com
+
+  - type: web
+    name: second-life-ml
+    runtime: python
+    rootDir: ml-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: FRONTEND_URL
+        value: https://second-life-tau.vercel.app
+      - key: BACKEND_URL
+        value: https://second-life-api.onrender.com
+      - key: CORS_ORIGINS
+        value: https://second-life-tau.vercel.app,https://second-life-ml.onrender.com,https://second-life-api.onrender.com

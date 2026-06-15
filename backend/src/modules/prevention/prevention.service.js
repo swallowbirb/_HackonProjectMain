@@ -35,7 +35,7 @@ const {
   COOLING_OFF_HOURS,
 } = require('../../contracts/prevention.contract');
 
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+const { ML_SERVICE_URL } = require('../../config/urls');
 const ML_TIMEOUT_MS = Number(process.env.ML_PREDICT_TIMEOUT_MS) || 4000;
 
 // ── Helpers ────────────────────────────────────────────────────────────────

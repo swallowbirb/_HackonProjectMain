@@ -1,3 +1,5 @@
+import re
+import os
 from pathlib import Path
 
 # Absolute path to ml-service/.env so settings load correctly regardless of CWD.
@@ -42,6 +44,57 @@ except Exception:  # noqa: BLE001 — allow importing pure logic without deps in
                     setattr(self, name, default)
 
 
+_LOCAL_DEV_ORIGINS = (
+    "http://localhost:3000,"
+    "http://localhost:5173,"
+    "http://localhost:5001"
+)
+
+# Wildcard patterns for Vercel preview/production and Render deployments
+_CORS_ORIGIN_PATTERNS = (
+    re.compile(r"^https://.*\.vercel\.app$"),
+    re.compile(r"^https://.*\.onrender\.com$"),
+)
+
+
+def _strip_trailing_slash(url: str) -> str:
+    return url.rstrip("/") if url else ""
+
+
+def parse_cors_origins(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [_strip_trailing_slash(o) for o in raw.split(",") if o.strip()]
+
+
+def get_cors_origins() -> list[str]:
+    """Explicit origins from CORS_ORIGINS plus FRONTEND_URL and BACKEND_URL."""
+    explicit = parse_cors_origins(os.environ.get("CORS_ORIGINS"))
+    for key in ("FRONTEND_URL", "BACKEND_URL", "ML_SERVICE_URL"):
+        val = os.environ.get(key)
+        if val:
+            explicit.append(_strip_trailing_slash(val))
+    if not explicit:
+        explicit = parse_cors_origins(_LOCAL_DEV_ORIGINS)
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for origin in explicit:
+        if origin not in seen:
+            seen.add(origin)
+            unique.append(origin)
+    return unique
+
+
+def is_cors_origin_allowed(origin: str) -> bool:
+    if not origin:
+        return True
+    normalized = _strip_trailing_slash(origin)
+    if normalized in get_cors_origins():
+        return True
+    return any(pattern.match(normalized) for pattern in _CORS_ORIGIN_PATTERNS)
+
+
 class Settings(BaseSettings):
     aws_region: str = "ap-south-1"
     aws_access_key_id: str = ""
@@ -49,6 +102,9 @@ class Settings(BaseSettings):
     s3_bucket_name: str = ""
     kms_key_id: str = ""
     ml_service_url: str = "http://localhost:8000"
+    frontend_url: str = "http://localhost:5173"
+    backend_url: str = "http://localhost:5001"
+    cors_origins: str = _LOCAL_DEV_ORIGINS
 
     # --- Gemini (LLM provider for Pass 1 + Pass 2) ---
     gemini_api_key: str = ""

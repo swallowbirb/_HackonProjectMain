@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { RefreshCw, CheckCircle2, XCircle, Loader2, User } from 'lucide-react';
+import { API_URL } from '../../config/env.js';
 
 /**
  * Quick admin/dev utility: force-sync the currently logged-in Clerk user
@@ -20,7 +21,7 @@ export default function SyncUserPage() {
     setResult(null);
     try {
       const token = await getToken();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/users/sync`, {
+      const res = await fetch(`${API_URL}/users/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

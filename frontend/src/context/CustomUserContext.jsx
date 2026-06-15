@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { setAuthToken, setTokenGetter } from "../services/api";
+import { API_URL } from "../config/env.js";
 
 const CustomUserContext = createContext();
 
@@ -33,7 +34,7 @@ export function CustomUserProvider({ children }) {
       setAuthToken(token);
 
       // First, try to sync user to make sure they exist in Mongo
-      const syncRes = await fetch(`${import.meta.env.VITE_API_URL}/users/sync`, {
+      const syncRes = await fetch(`${API_URL}/users/sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -51,7 +52,7 @@ export function CustomUserProvider({ children }) {
       }
 
       // Then get the user profile
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/users/me`, {
+      const response = await fetch(`${API_URL}/users/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -100,7 +101,7 @@ export function CustomUserProvider({ children }) {
   const updateRole = async (newRole) => {
     try {
       const token = mockClerkId ? mockClerkId : await getToken();
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/users/role`, {
+      const response = await fetch(`${API_URL}/users/role`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
