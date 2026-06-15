@@ -88,6 +88,20 @@ function RoleGuard({ children }) {
   return children;
 }
 
+function ProtectedRoute({ children }) {
+  const { isSignedIn, isLoaded } = useCustomUser();
+  const location = useLocation();
+
+  if (!isLoaded) return <LoadingScreen />;
+
+  if (!isSignedIn) {
+    // Redirect to sign-in with return URL
+    return <Navigate to="/sign-in" state={{ from: location.pathname }} replace />;
+  }
+
+  return children;
+}
+
 // ─── Utility Screens ────────────────────────────────────────────────────────
 
 function LoadingScreen() {
@@ -153,10 +167,10 @@ function App() {
               <Route path="/sign-up/*" element={<CustomSignedOut><SignUpPage /></CustomSignedOut>} />
 
               {/* Role selection */}
-              <Route path="/role-selection" element={<CustomSignedIn><RoleSelectionPage /></CustomSignedIn>} />
+              <Route path="/role-selection" element={<ProtectedRoute><RoleSelectionPage /></ProtectedRoute>} />
 
               {/* Dashboard redirect */}
-              <Route path="/dashboard" element={<CustomSignedIn><DashboardRedirect /></CustomSignedIn>} />
+              <Route path="/dashboard" element={<ProtectedRoute><DashboardRedirect /></ProtectedRoute>} />
 
               {/* Buyer routes */}
               <Route
@@ -165,41 +179,41 @@ function App() {
               />
               <Route
                 path="/orders"
-                element={<CustomSignedIn><MarketplaceLayout><BuyerOrdersPage /></MarketplaceLayout></CustomSignedIn>}
+                element={<ProtectedRoute><MarketplaceLayout><BuyerOrdersPage /></MarketplaceLayout></ProtectedRoute>}
               />
               <Route
                 path="/sell-secondhand"
-                element={<CustomSignedIn><MarketplaceLayout><SellSecondhandPage /></MarketplaceLayout></CustomSignedIn>}
+                element={<ProtectedRoute><MarketplaceLayout><SellSecondhandPage /></MarketplaceLayout></ProtectedRoute>}
               />
               <Route
                 path="/looking-for"
-                element={<CustomSignedIn><MarketplaceLayout><LookingForPage /></MarketplaceLayout></CustomSignedIn>}
+                element={<ProtectedRoute><MarketplaceLayout><LookingForPage /></MarketplaceLayout></ProtectedRoute>}
               />
               <Route
                 path="/items/:itemId/evidence"
-                element={<CustomSignedIn><MarketplaceLayout><ItemEvidencePage /></MarketplaceLayout></CustomSignedIn>}
+                element={<ProtectedRoute><MarketplaceLayout><ItemEvidencePage /></MarketplaceLayout></ProtectedRoute>}
               />
               <Route
                 path="/items/:itemId/status"
-                element={<CustomSignedIn><MarketplaceLayout><ItemStatusPage /></MarketplaceLayout></CustomSignedIn>}
+                element={<ProtectedRoute><MarketplaceLayout><ItemStatusPage /></MarketplaceLayout></ProtectedRoute>}
               />
 
               {/* Seller routes */}
               <Route
                 path="/seller/dashboard"
-                element={<CustomSignedIn><SellerGuard><SellerDashboard /></SellerGuard></CustomSignedIn>}
+                element={<ProtectedRoute><SellerGuard><SellerDashboard /></SellerGuard></ProtectedRoute>}
               />
               <Route
                 path="/seller/new-product"
-                element={<CustomSignedIn><SellerGuard><NewProductPage /></SellerGuard></CustomSignedIn>}
+                element={<ProtectedRoute><SellerGuard><NewProductPage /></SellerGuard></ProtectedRoute>}
               />
               <Route
                 path="/seller/edit-product/:id"
-                element={<CustomSignedIn><SellerGuard><EditProductPage /></SellerGuard></CustomSignedIn>}
+                element={<ProtectedRoute><SellerGuard><EditProductPage /></SellerGuard></ProtectedRoute>}
               />
               <Route
                 path="/seller/new-offer"
-                element={<CustomSignedIn><SellerGuard><NewOfferPage /></SellerGuard></CustomSignedIn>}
+                element={<ProtectedRoute><SellerGuard><NewOfferPage /></SellerGuard></ProtectedRoute>}
               />
               <Route
                 path="/reseller/dashboard"
@@ -209,17 +223,17 @@ function App() {
               {/* Brand routes */}
               <Route
                 path="/brand/dashboard"
-                element={<CustomSignedIn><BrandGuard><BrandDashboard /></BrandGuard></CustomSignedIn>}
+                element={<ProtectedRoute><BrandGuard><BrandDashboard /></BrandGuard></ProtectedRoute>}
               />
 
               {/* Admin routes */}
               <Route
                 path="/admin/dashboard"
-                element={<CustomSignedIn><AdminGuard><AdminDashboard /></AdminGuard></CustomSignedIn>}
+                element={<ProtectedRoute><AdminGuard><AdminDashboard /></AdminGuard></ProtectedRoute>}
               />
               <Route
                 path="/admin/demand-map"
-                element={<CustomSignedIn><AdminGuard><MarketplaceLayout><DemandMapPage /></MarketplaceLayout></AdminGuard></CustomSignedIn>}
+                element={<ProtectedRoute><AdminGuard><MarketplaceLayout><DemandMapPage /></MarketplaceLayout></AdminGuard></ProtectedRoute>}
               />
             </Routes>
           </RoleGuard>
