@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const ResaleListing = require('./resale.model');
 const Item = require('../items/item.model');
 const Product = require('../products/product.model');
+const RoutingDecision = require('../routing/routing.model');
 const itemService = require('../items/item.service');
 const ItemLogger = require('../../utils/itemLogger');
 const {
@@ -70,14 +71,53 @@ const buildDescription = ({ productTitle, category, grade, qualityScore, defects
   return lines.join('\n\n');
 };
 
+const IMG_LIMIT = 8;
+
 /**
- * Pick listing photos: prefer the grade evidence bundle, fall back to item evidence.
+ * Resolve the SAME catalogue images the buyer saw on the marketplace, so a resale
+ * listing matches the main catalogue instead of showing the returner's evidence
+ * photos (which are completely different shots of the used unit).
+ *   return (direct product) → Product.images
+ *   return (catalog order)  → BrandCatalogEntry.officialImages (via the Return record)
+ *   sell-used               → none here (a personal item has no catalogue entry; its
+ *                             own photos are the right ones — handled by the fallback)
  */
-const selectImages = (grade, item) => {
+const resolveCatalogImages = async (item) => {
+  try {
+    if (item.originalProductId) {
+      const product = await Product.findById(item.originalProductId).select('images').lean();
+      if (product?.images?.length) return product.images.slice(0, IMG_LIMIT);
+    }
+    if (item.returnId) {
+      const Return = require('../returns/return.model');
+      const ret = await Return.findById(item.returnId).select('originalProductId originalCatalogEntryId').lean();
+      if (ret?.originalProductId) {
+        const product = await Product.findById(ret.originalProductId).select('images').lean();
+        if (product?.images?.length) return product.images.slice(0, IMG_LIMIT);
+      }
+      if (ret?.originalCatalogEntryId) {
+        const BrandCatalogEntry = require('../brandCatalog/brandCatalogEntry.model');
+        const entry = await BrandCatalogEntry.findById(ret.originalCatalogEntryId).select('officialImages').lean();
+        if (entry?.officialImages?.length) return entry.officialImages.slice(0, IMG_LIMIT);
+      }
+    }
+  } catch (err) {
+    console.warn(`[resale] resolveCatalogImages failed: ${err.message}`);
+  }
+  return [];
+};
+
+/**
+ * Pick listing photos: prefer the catalogue image (so it matches the marketplace),
+ * then the grade evidence bundle, then raw item evidence.
+ */
+const selectImages = async (grade, item) => {
+  const catalog = await resolveCatalogImages(item);
+  if (catalog.length) return catalog;
   const fromBundle = grade?.evidenceBundle?.imageUrls;
-  if (Array.isArray(fromBundle) && fromBundle.length > 0) return fromBundle.slice(0, 8);
+  if (Array.isArray(fromBundle) && fromBundle.length > 0) return fromBundle.slice(0, IMG_LIMIT);
   if (Array.isArray(item?.evidencePhotos) && item.evidencePhotos.length > 0) {
-    return item.evidencePhotos.slice(0, 8);
+    return item.evidencePhotos.slice(0, IMG_LIMIT);
   }
   return [];
 };
@@ -163,7 +203,7 @@ const createDraftFromRouting = async ({ itemId, routingDecision, grade }) => {
       rationale: gradeDoc.rationale,
     }),
     category,
-    images: selectImages(gradeDoc, item),
+    images: await selectImages(gradeDoc, item),
     originalPrice,
     suggestedPrice,
     price: suggestedPrice,
@@ -251,7 +291,7 @@ const publish = async (listingId, user) => {
     marketplaceProductId: String(productId),
   });
 
-  return listing;
+  return attachRouting(listing);
 };
 
 /**
@@ -271,7 +311,7 @@ const unlist = async (listingId, user) => {
   if (listing.marketplaceProductId) {
     await Product.findByIdAndUpdate(listing.marketplaceProductId, { suspended: true });
   }
-  return listing;
+  return attachRouting(listing);
 };
 
 /**
@@ -292,7 +332,7 @@ const updatePrice = async (listingId, price, user) => {
   if (listing.marketplaceProductId) {
     await Product.findByIdAndUpdate(listing.marketplaceProductId, { price: listing.price });
   }
-  return listing;
+  return attachRouting(listing);
 };
 
 /**
@@ -327,11 +367,75 @@ const getStorefront = async ({ category, conditionLane, page = 1, limit = 20 } =
 };
 
 /**
+ * Compact, seller-facing summary of the decision-tree output that created/will
+ * fulfil a listing. The seller never tunes routing — they just see what we'll do.
+ */
+const routingSummary = (rd) => {
+  if (!rd) return null;
+  return {
+    chosenPath: rd.chosenPath,
+    peerRedistribute: rd.chosenPath === 'peer-redistribute',
+    warehouse: rd.chosenWarehouse
+      ? { code: rd.chosenWarehouse.code, name: rd.chosenWarehouse.name, city: rd.chosenWarehouse.city }
+      : null,
+    matchWindowHours: rd.matchWindow?.active ? rd.matchWindow.hours : null,
+    demandCount: rd.demandSignal?.count ?? 0,
+  };
+};
+
+/**
+ * Attach the routing decision-tree summary to a listing (plain object out).
+ * Resolves by routingDecisionId, falling back to a lookup by itemId.
+ */
+const attachRouting = async (listing) => {
+  if (!listing) return listing;
+  const plain = typeof listing.toObject === 'function' ? listing.toObject() : listing;
+  let rd = null;
+  try {
+    rd = plain.routingDecisionId
+      ? await RoutingDecision.findById(plain.routingDecisionId).lean()
+      : await RoutingDecision.findOne({ itemId: plain.itemId }).lean();
+  } catch (_) {
+    rd = null;
+  }
+  return { ...plain, routing: routingSummary(rd) };
+};
+
+/**
+ * Backfill catalogue images onto a listing that predates the image fix (it was
+ * built from evidence photos). Self-heals once: re-resolves the catalogue image
+ * and, if it differs, rewrites the listing (and its mirror product). No-op when
+ * already correct or when there's no catalogue image to use.
+ */
+const healCatalogImages = async (listing) => {
+  try {
+    const item = await Item.findById(listing.itemId).select('originalProductId returnId').lean();
+    if (!item) return listing;
+    const catalog = await resolveCatalogImages(item);
+    if (!catalog.length) return listing;
+    const current = Array.isArray(listing.images) ? listing.images : [];
+    const same = current.length === catalog.length && current.every((u, i) => u === catalog[i]);
+    if (same) return listing;
+    await ResaleListing.updateOne({ _id: listing._id }, { images: catalog });
+    if (listing.marketplaceProductId) {
+      await Product.updateOne({ _id: listing.marketplaceProductId }, { images: catalog });
+    }
+    return { ...listing, images: catalog };
+  } catch (err) {
+    console.warn(`[resale] healCatalogImages failed: ${err.message}`);
+    return listing;
+  }
+};
+
+/**
  * All listings belonging to a seller (any status) — for the seller dashboard.
+ * Each listing carries a `routing` summary so the seller sees how we'll route it.
  */
 const getSellerListings = async (sellerId) => {
   if (!mongoose.isValidObjectId(sellerId)) return [];
-  return ResaleListing.find({ sellerId }).sort({ createdAt: -1 }).lean();
+  const listings = await ResaleListing.find({ sellerId }).sort({ createdAt: -1 }).lean();
+  const healed = await Promise.all(listings.map((l) => healCatalogImages(l)));
+  return Promise.all(healed.map((l) => attachRouting(l)));
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────────

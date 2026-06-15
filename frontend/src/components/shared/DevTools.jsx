@@ -243,7 +243,7 @@ export default function DevTools() {
                   </button>
                   <button
                     onClick={async () => {
-                      if (window.confirm("Are you sure? This will wipe the database content (users are kept).")) {
+                      if (window.confirm("Are you sure? This wipes all marketplace, return & resale data.\n\nKept: the demand map (warehouses, generated demand, buyer wants) and dev/demo accounts.")) {
                         setIsProcessingData(true);
                         await eraseAllData();
                         setIsProcessingData(false);

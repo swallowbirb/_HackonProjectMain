@@ -194,6 +194,18 @@ export default function ItemEvidencePage() {
     });
   };
 
+  // Clears every photo/frame for a field at once (used to remove an uploaded video).
+  const removeAllPhotos = (fieldId) => {
+    setFieldState((prev) => {
+      const reverted = revertVerifiedOnEdit(prev, fieldId);
+      const f = reverted[fieldId] || {};
+      return {
+        ...reverted,
+        [fieldId]: { ...f, photos: [], fieldStatus: 'idle', reuploadReason: null, perPhoto: [], missingViews: [] },
+      };
+    });
+  };
+
   const setText = (fieldId, value) => {
     setFieldState((prev) => ({ ...prev, [fieldId]: { ...(prev[fieldId] || {}), text: value } }));
   };
@@ -336,6 +348,10 @@ export default function ItemEvidencePage() {
     <div className="flex">
       <div className="flex-1 min-w-0">
         <div className="max-w-2xl mx-auto px-4 py-10 font-sans">
+          {readiness === 'pending' ? (
+            <FormGeneratingScreen productTitle={productTitle} label={label} />
+          ) : (
+          <>
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
@@ -399,6 +415,7 @@ export default function ItemEvidencePage() {
                 onPhotoUpload={(files) => handleFieldUpload(field, files)}
                 onVideoUpload={(file) => handleVideoUpload(field, file)}
                 onRemove={(tmpUrl) => removePhoto(field.id, tmpUrl)}
+                onClearVideo={() => removeAllPhotos(field.id)}
                 onSubmit={() => submitFieldForVerification(field)}
               />
             ))}
@@ -492,6 +509,8 @@ export default function ItemEvidencePage() {
               </motion.button>
             )}
           </div>
+          </>
+          )}
         </div>
       </div>
 
@@ -501,7 +520,7 @@ export default function ItemEvidencePage() {
 }
 
 // --- PhotoField sub-component ---
-function PhotoField({ field, fieldState, verifying, fileInputRef, videoInputRef, onPhotoUpload, onVideoUpload, onRemove, onSubmit }) {
+function PhotoField({ field, fieldState, verifying, fileInputRef, videoInputRef, onPhotoUpload, onVideoUpload, onRemove, onClearVideo, onSubmit }) {
   const photos = fieldState.photos || [];
   const fieldStatus = fieldState.fieldStatus || (photos.length > 0 ? 'staged' : 'idle');
   const hasReadyPhoto = photos.some((p) => p.url && p.status === 'ready');
@@ -591,7 +610,12 @@ function PhotoField({ field, fieldState, verifying, fileInputRef, videoInputRef,
         )}
       </div>
 
-      {photos.length > 0 && (
+      {/* Video fields: show a single status card — never expose the extracted frames. */}
+      {isVideo && photos.length > 0 && (
+        <VideoStatusCard photos={photos} verifying={verifying} onClear={onClearVideo} />
+      )}
+
+      {!isVideo && photos.length > 0 && (
         <div className="mt-3 grid grid-cols-3 gap-2">
           {photos.map((p) => {
             const note = p.url ? noteByUrl.get(p.url) : null;
@@ -671,6 +695,75 @@ function PhotoField({ field, fieldState, verifying, fileInputRef, videoInputRef,
         </motion.button>
       </div>
     </motion.div>
+  );
+}
+
+// --- "Just a moment" screen shown while the AI tailors the form ---
+function FormGeneratingScreen({ productTitle, label }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-[60vh] flex flex-col items-center justify-center text-center"
+    >
+      <div className="relative mb-7">
+        <motion.div
+          className="absolute inset-0 rounded-3xl border-2 border-[#FF9900]/30"
+          animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0, 0.6] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <div className="w-20 h-20 rounded-3xl bg-orange-50 flex items-center justify-center">
+          <Sparkles className="w-9 h-9 text-[#FF9900]" />
+        </div>
+      </div>
+      <h1 className="text-2xl font-black text-gray-900">Just a moment…</h1>
+      <p className="text-sm text-gray-500 mt-2 max-w-sm leading-relaxed">
+        We’re tailoring a custom condition checklist for{' '}
+        <span className="font-semibold text-gray-700">{productTitle}</span>. This usually takes a few seconds.
+      </p>
+      <div className="mt-6 inline-flex items-center gap-2 text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Preparing your {label.toLowerCase()} form
+      </div>
+    </motion.div>
+  );
+}
+
+// --- Single status card for a submitted video (frames stay hidden from the user) ---
+function VideoStatusCard({ photos, verifying, onClear }) {
+  const processing = photos.some((p) => p.status === 'extracting' || p.status === 'uploading');
+  const ready = !processing && photos.some((p) => p.status === 'ready');
+  const failed = !processing && !ready;
+
+  return (
+    <div className={`mt-3 flex items-center gap-3 border rounded-xl p-3 ${failed ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+      <div className="w-12 h-12 rounded-lg bg-[#FF9900]/10 flex items-center justify-center flex-shrink-0">
+        <Video className="w-6 h-6 text-[#FF9900]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-gray-800">
+          {processing ? 'Processing your video…' : ready ? 'Video added' : 'Upload failed'}
+        </p>
+        <p className="text-xs text-gray-500">
+          {processing
+            ? 'We’ll analyse it automatically — no need to do anything.'
+            : ready
+              ? 'Ready to submit for AI verification.'
+              : 'Something went wrong. Please record the video again.'}
+        </p>
+      </div>
+      {processing ? (
+        <Loader2 className="w-4 h-4 animate-spin text-gray-400 flex-shrink-0" />
+      ) : (
+        <button
+          onClick={onClear}
+          disabled={verifying}
+          className="flex-shrink-0 w-7 h-7 rounded-full bg-black/60 hover:bg-red-500 disabled:opacity-50 text-white flex items-center justify-center transition-colors"
+          aria-label="Remove video"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </div>
   );
 }
 

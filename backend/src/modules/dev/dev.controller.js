@@ -16,26 +16,53 @@ const RoutingDecision = require('../routing/routing.model');
 const HealthCard = require('../healthCard/healthCard.model');
 const TrustProfile = require('../trust/trust.model');
 
-// Erase all data except base mock users
+// Erase ALL data except the demand-map demo data we generated and base dev users.
+//
+// Preserved on purpose (so the demand map keeps working without re-seeding):
+//   • Warehouse    — the Chhattisgarh cities + their map coordinates
+//   • DemandConfig — populator-generated per-tag demand peaks / custom tags
+//   • Want         — seeded buyer "Looking for…" demand posts
+//   • Users with clerkId mock_* (dev logins) and pademo_* (the demo buyers that
+//     own the seeded Want posts — kept so those posts aren't orphaned).
+//
+// Everything else (products, orders, reviews, brands, the return/resale/grading
+// pipeline, etc.) is wiped. We clear by enumerating the live collections rather
+// than a hard-coded model list so newly-added collections are erased too.
 const eraseData = async (req, res, next) => {
   try {
     if (process.env.NODE_ENV === 'production') {
       return res.status(403).json({ success: false, message: 'Not allowed in production' });
     }
 
-    // Erase content collections
-    await Brand.deleteMany({});
-    await BrandCatalogEntry.deleteMany({});
-    await SellerOffer.deleteMany({});
-    await Product.deleteMany({});
-    await Order.deleteMany({});
-    await Review.deleteMany({});
-    await BrandEnrollment.deleteMany({});
+    const mongoose = require('mongoose');
+    const Warehouse = require('../demand/warehouse.model');
+    const DemandConfig = require('../demand/demandConfig.model');
+    const Want = require('../demand/demand.model');
 
-    // Erase users that are not base dev users
-    await User.deleteMany({ clerkId: { $not: /^mock_/ } });
+    // Collection names to keep. Derived from the models so a custom collection
+    // name on any of them stays correct.
+    const preserved = new Set([
+      Warehouse.collection.collectionName,
+      DemandConfig.collection.collectionName,
+      Want.collection.collectionName,
+      User.collection.collectionName, // pruned (not fully wiped) below
+    ]);
 
-    res.status(200).json({ success: true, message: 'All data erased except base dev users.' });
+    const collections = await mongoose.connection.db.listCollections().toArray();
+    await Promise.all(
+      collections
+        .filter((c) => !preserved.has(c.name))
+        .map((c) => mongoose.connection.db.collection(c.name).deleteMany({}))
+    );
+
+    // Keep dev logins (mock_*) and the demand-map demo buyers (pademo_*); wipe
+    // every other account.
+    await User.deleteMany({ clerkId: { $not: /^(mock_|pademo_)/ } });
+
+    res.status(200).json({
+      success: true,
+      message: 'Data erased. Demand map preserved: warehouses, generated demand, and buyer wants.',
+    });
   } catch (error) {
     next(error);
   }
