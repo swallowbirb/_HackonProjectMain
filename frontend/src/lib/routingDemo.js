@@ -65,6 +65,9 @@ const HOLDING_COST_PER_DAY = {
   Toys: 2, Books: 1, Automotive: 6, 'Health & Beauty': 8, general: 5,
 };
 const WAREHOUSE = { demandWeight: 0.08, inboundWeight: 1.0, outboundWeight: 1.0, holdingDays: 14, expectedOutboundKm: 30 };
+// Demand (normalized 0-100) at/above which a warehouse is treated as a near-certain
+// sell-through. Mirrors backend routing.config.SELL_THROUGH_REF.
+const SELL_THROUGH_REF = 40;
 
 const weightMultiplier = (kg) => (WEIGHT_BRACKETS.find((b) => kg <= b.maxKg) || WEIGHT_BRACKETS[WEIGHT_BRACKETS.length - 1]).multiplier;
 const categoryWeight = (category) => CATEGORY_WEIGHT_KG[category] || DEFAULT_WEIGHT_KG;
@@ -76,9 +79,13 @@ const inboundCost = (distanceKm, category) => {
 
 /**
  * Rank every warehouse for an item and pick the winner — mirrors the backend
- * scorecard: score = resaleValue·(1 + w·demand) − inbound − expectedOutbound − holding.
- * (Demand is softened here vs. the raw backend weight so the demo ranking shows a
- * readable trade-off between demand and distance rather than demand dominating.)
+ * decision-tree's warehouse step (routing.warehouse.chooseWarehouse):
+ *
+ *   expectedRecovery = resaleValue × sellThrough(demand) − inboundCost
+ *   sellThrough = min(1, demand / SELL_THROUGH_REF)
+ *
+ * Highest expected recovery wins; a warehouse is "viable" only if it turns a
+ * profit (> 0). If none are viable the item is donated/liquidated instead.
  *
  * @param {object} args
  *   warehouses  [{ warehouseCode, demand (0-100), raw, warehouse:{ city, name, location } }]
@@ -89,18 +96,15 @@ const inboundCost = (distanceKm, category) => {
  */
 export const rankWarehouses = ({ warehouses = [], resaleValue = 0, category = 'general', source } = {}) => {
   const src = source || sourcePos();
-  const holdingCost = (HOLDING_COST_PER_DAY[category] || HOLDING_COST_PER_DAY.general) * WAREHOUSE.holdingDays;
-  const expectedOutbound = Math.round(CARRIER.baseFee + CARRIER.perKm * WAREHOUSE.expectedOutboundKm);
 
   const ranked = warehouses
     .map((w) => {
       const pos = warehousePos(w.warehouseCode, w.warehouse?.location?.coordinates);
       const distanceKm = Math.round(pixelDist(src, pos) * KM_PER_PX);
       const inbound = inboundCost(distanceKm, category);
-      const demand = Number(w.demand) || 0;
-      const demandBoostedValue = Math.round(resaleValue * (1 + WAREHOUSE.demandWeight * (demand / 10)));
-      const score = Math.round(demandBoostedValue - WAREHOUSE.inboundWeight * inbound - WAREHOUSE.outboundWeight * expectedOutbound - holdingCost);
-      const netRecovery = Math.round(resaleValue - inbound - expectedOutbound - holdingCost);
+      const demand = Number(w.demand) || 0; // 0-100 normalized
+      const sellThrough = Math.max(0, Math.min(1, demand / SELL_THROUGH_REF));
+      const expectedRecovery = Math.round(resaleValue * sellThrough - inbound);
       return {
         code: w.warehouseCode,
         city: w.warehouse?.city || w.warehouseCode,
@@ -110,14 +114,13 @@ export const rankWarehouses = ({ warehouses = [], resaleValue = 0, category = 'g
         raw: w.raw ?? 0,
         distanceKm,
         inbound,
-        expectedOutbound,
-        holdingCost,
-        demandBoostedValue,
-        netRecovery,
-        score,
+        sellThrough: Math.round(sellThrough * 100) / 100,
+        netRecovery: expectedRecovery,
+        score: expectedRecovery,
+        viable: expectedRecovery > 0,
       };
     })
-    .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code));
+    .sort((a, b) => b.score - a.score || a.distanceKm - b.distanceKm);
 
   const winner = ranked[0] || null;
   const nearest = [...ranked].sort((a, b) => a.distanceKm - b.distanceKm)[0] || null;

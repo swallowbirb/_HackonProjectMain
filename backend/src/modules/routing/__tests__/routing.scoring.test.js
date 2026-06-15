@@ -1,6 +1,6 @@
 /**
- * Pure routing-scoring unit tests — no DB. Run with: node --test
- * Locks the disposition brain, hard gates, refund timing, and determinism.
+ * Pure routing decision-tree unit tests — no DB. Run with: node --test
+ * Locks the disposition tree, hard gates, refund timing, and determinism.
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -15,17 +15,28 @@ const {
 const RAIPUR = { type: 'Point', coordinates: [81.6296, 21.2514] };
 const BILASPUR = { type: 'Point', coordinates: [82.1409, 22.0797] };
 
-const baseInputs = (o = {}) => ({
-  grade: { grade: 'A', qualityScore: 90, estimatedResalePct: 0.7 },
-  resaleValue: 1400,
-  demandCount: 0,
-  inboundCost: 100,
-  category: 'Electronics',
-  trust: { tier: 'verified', score: 90 },
+// A profitable best-warehouse pick (as routing.warehouse.chooseWarehouse returns).
+const viableWarehouse = (o = {}) => ({
+  warehouseCode: 'RAIPUR-01',
+  warehouse: { code: 'RAIPUR-01', city: 'Raipur', name: 'Raipur Central Hub' },
+  score: 800,
+  viable: true,
+  breakdown: { distanceKm: 0, inbound: 100, demand: 60, sellThrough: 1, resaleValue: 1400, expectedRecovery: 800 },
   ...o,
 });
 
-test('haversine: Raipur→Bilaspur ≈ 95-115 km', () => {
+const baseInputs = (o = {}) => ({
+  grade: { grade: 'A', qualityScore: 90, estimatedResalePct: 0.7 },
+  resaleValue: 1400,
+  category: 'Electronics',
+  trust: { tier: 'verified', score: 90 },
+  peerCount: 0,
+  warehouse: viableWarehouse(),
+  inboundCost: 100,
+  ...o,
+});
+
+test('haversine: Raipur→Bilaspur ≈ 90-120 km', () => {
   const d = haversine(RAIPUR.coordinates, BILASPUR.coordinates);
   assert.ok(d > 90 && d < 120, `distance=${d}`);
 });
@@ -40,36 +51,51 @@ test('reverseLogisticsCost grows with distance', () => {
   assert.ok(far > near, `far=${far} near=${near}`);
 });
 
-test('Grade A + verified → resell wins', () => {
+test('Grade A + no peer + profitable warehouse → resell', () => {
   const d = decide(baseInputs());
   assert.strictEqual(d.chosenPath, 'resell');
 });
 
-test('Grade A + nearby demand → peer-redistribute beats plain resell', () => {
-  const d = decide(baseInputs({ demandCount: 8 }));
+test('Grade A + a nearby peer buyer → peer-redistribute (skips warehouse)', () => {
+  const d = decide(baseInputs({ peerCount: 1 }));
   assert.strictEqual(d.chosenPath, 'peer-redistribute');
 });
 
-test('Counterfeit hard gate → liquidate, overrides score', () => {
-  const d = decide(baseInputs({ counterfeit: true }));
+test('Even a single peer buyer triggers peer handoff', () => {
+  const d = decide(baseInputs({ peerCount: 1, warehouse: viableWarehouse() }));
+  assert.strictEqual(d.chosenPath, 'peer-redistribute');
+});
+
+test('No peer + no profitable warehouse + decent value → liquidate', () => {
+  const d = decide(baseInputs({ peerCount: 0, warehouse: { viable: false, score: -120, breakdown: {} }, resaleValue: 1400 }));
+  assert.strictEqual(d.chosenPath, 'liquidate');
+});
+
+test('No peer + no profitable warehouse + low value → donate', () => {
+  const d = decide(baseInputs({ peerCount: 0, warehouse: { viable: false, score: -50, breakdown: {} }, resaleValue: 100 }));
+  assert.strictEqual(d.chosenPath, 'donate');
+});
+
+test('Counterfeit hard gate → liquidate, overrides tree', () => {
+  const d = decide(baseInputs({ counterfeit: true, peerCount: 5 }));
   assert.strictEqual(d.chosenPath, 'liquidate');
   assert.ok(d.hardGatesApplied.includes('COUNTERFEIT_DETECTED'));
 });
 
-test('Grade D + no demand → donate gate', () => {
-  const d = decide(baseInputs({ grade: { grade: 'D', estimatedResalePct: 0.1 }, resaleValue: 50 }));
+test('Grade D → donate gate (not resellable)', () => {
+  const d = decide(baseInputs({ grade: { grade: 'D', estimatedResalePct: 0.1 }, resaleValue: 50, peerCount: 4 }));
   assert.strictEqual(d.chosenPath, 'donate');
-  assert.ok(d.hardGatesApplied.includes('GRADE_D_NO_DEMAND'));
+  assert.ok(d.hardGatesApplied.includes('GRADE_D_NOT_RESELLABLE'));
 });
 
 test('Hygiene category → donate (grade A/B) gate', () => {
-  const d = decide(baseInputs({ category: 'Health & Beauty' }));
+  const d = decide(baseInputs({ category: 'Health & Beauty', peerCount: 3 }));
   assert.strictEqual(d.chosenPath, 'donate');
   assert.ok(d.hardGatesApplied.includes('HYGIENE_SAFETY'));
 });
 
 test('Restricted user → return-to-seller + refund rejected', () => {
-  const d = decide(baseInputs({ trust: { tier: 'restricted', score: 5 } }));
+  const d = decide(baseInputs({ trust: { tier: 'restricted', score: 5 }, peerCount: 9 }));
   assert.strictEqual(d.chosenPath, 'return-to-seller');
   assert.strictEqual(d.refundTiming, 'rejected');
   assert.strictEqual(d.refundHold, true);
@@ -93,8 +119,8 @@ test('Trusted + expensive inbound → on-resolution (not immediate)', () => {
 });
 
 test('determinism: same inputs → identical decision', () => {
-  const a = decide(baseInputs({ demandCount: 3 }));
-  const b = decide(baseInputs({ demandCount: 3 }));
+  const a = decide(baseInputs({ peerCount: 2 }));
+  const b = decide(baseInputs({ peerCount: 2 }));
   assert.deepStrictEqual(a, b);
 });
 
@@ -104,9 +130,11 @@ test('applyHardGates: clean grade A → no forced path', () => {
   assert.strictEqual(gatesApplied.length, 0);
 });
 
-test('ranked alternatives are sorted descending by score', () => {
-  const d = decide(baseInputs({ demandCount: 5 }));
-  for (let i = 1; i < d.rankedAlternatives.length; i++) {
-    assert.ok(d.rankedAlternatives[i - 1].score >= d.rankedAlternatives[i].score);
+test('ranked alternatives are sorted descending by recovery', () => {
+  const d = decide(baseInputs({ peerCount: 0 }));
+  // (chosen path is bubbled to front; the rest must be sorted desc)
+  const rest = d.rankedAlternatives.slice(1);
+  for (let i = 1; i < rest.length; i++) {
+    assert.ok(rest[i - 1].score >= rest[i].score);
   }
 });

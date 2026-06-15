@@ -271,7 +271,7 @@ const computeRoutingDecision = async (itemId, opts = {}) => {
       rankedAlternatives: decision.rankedAlternatives,
       hardGatesApplied: decision.hardGatesApplied,
       reverseLogisticsCost: decision.reverseLogisticsCost,
-      demandSignal: { count: demand.count, radiusKm: demand.radiusKm },
+      demandSignal: { count: peerCount, radiusKm: 25 },
       refundTiming: decision.refundTiming,
       refundHold: decision.refundHold,
       refundHoldReason: decision.refundHoldReason,

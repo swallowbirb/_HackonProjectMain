@@ -98,11 +98,13 @@ export default function ResaleRouteDetail({ listing, onClose }) {
 
   const reason = useMemo(() => {
     if (!dest || !nearest) return '';
+    const profit = dest.viable
+      ? `We expect to recover ${inr(dest.netRecovery)} here (resale value × ${Math.round((dest.sellThrough || 0) * 100)}% sell-through − ₹${dest.inbound} shipping).`
+      : `Even the best warehouse loses money at current demand — this item would be donated or liquidated instead.`;
     if (dest.code === nearest.code) {
-      return `${dest.city} is both the closest hub (${dest.distanceKm} km) and carries the strongest buyer demand for “${term}” — an easy win on every axis.`;
+      return `${dest.city} is both the closest hub (${dest.distanceKm} km) and carries the strongest demand for “${term}”. ${profit}`;
     }
-    const delta = dest.score - nearest.score;
-    return `${dest.city} wins on net recovery: its demand index of ${dest.demand}/100 for “${term}” makes it the highest-value hub (score ${dest.score}), beating the nearest hub ${nearest.city} (${nearest.distanceKm} km) by ${delta} points — even though it sits ${dest.distanceKm} km away. Best warehouse, not nearest.`;
+    return `${dest.city} wins: its demand index of ${dest.demand}/100 for “${term}” makes it the highest expected-recovery hub, beating the nearest hub ${nearest.city} (${nearest.distanceKm} km) even though it's ${dest.distanceKm} km away. ${profit} Best warehouse, not nearest.`;
   }, [dest, nearest, term]);
 
   const img = listing.images?.[0] || 'https://picsum.photos/seed/resale/200/200';
@@ -183,10 +185,10 @@ export default function ResaleRouteDetail({ listing, onClose }) {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
                   <Num label="Distance" value={`${dest?.distanceKm ?? '—'} km`} />
                   <Num label="Demand index" value={`${dest?.demand ?? 0}/100`} highlight />
+                  <Num label="Sell-through" value={`${Math.round((dest?.sellThrough ?? 0) * 100)}%`} />
                   <Num label="Inbound logistics" value={inr(dest?.inbound)} />
-                  <Num label="Outbound (est.)" value={inr(dest?.expectedOutbound)} />
-                  <Num label="Holding · 14d" value={inr(dest?.holdingCost)} />
-                  <Num label="Net recovery" value={inr(dest?.netRecovery)} highlight />
+                  <Num label="Expected recovery" value={inr(dest?.netRecovery)} highlight />
+                  <Num label="Profitable?" value={dest?.viable ? 'Yes ✓' : 'No'} />
                 </div>
               </div>
 
@@ -218,7 +220,7 @@ export default function ResaleRouteDetail({ listing, onClose }) {
                   })}
                 </div>
                 <p className="text-[10px] text-indigo-900/50 mt-3">
-                  score = resale value × (1 + demand) − inbound − outbound − holding · highest score wins
+                  expected recovery = resale value × sell-through(demand) − shipping cost · highest wins
                 </p>
               </div>
             </div>

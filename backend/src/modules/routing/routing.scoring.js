@@ -110,7 +110,7 @@ const estimateRecoveries = ({ resaleValue = 0, inboundCost = 0, category, peerCo
   const warehouseRecovery = warehouse ? warehouse.score : Math.round(resaleValue - inboundCost - holding);
 
   return {
-    'peer-redistribute': peerCount >= 1 ? Math.round(resaleValue - peerHop) : Math.round(resaleValue - peerHop) - 100,
+    'peer-redistribute': peerCount >= 1 ? Math.round(resaleValue - peerHop) : -peerHop,
     resell: warehouseRecovery,
     refurbish: Math.round(resaleValue * 0.85 - inboundCost - holding),
     liquidate: Math.round(resaleValue * 0.2),
