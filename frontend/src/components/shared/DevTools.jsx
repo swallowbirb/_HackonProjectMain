@@ -381,6 +381,11 @@ export default function DevTools() {
                       {geminiResult.elapsedMs != null && <span className="ml-2">· {geminiResult.elapsedMs}ms</span>}
                     </div>
                   )}
+                  {geminiResult.mlServiceUrl && (
+                    <div className="text-zinc-400 break-all">
+                      ML Service: <span className="font-mono text-xs text-zinc-300">{geminiResult.mlServiceUrl}</span>
+                    </div>
+                  )}
                   {geminiResult.ok ? (
                     geminiResult.reply && (
                       <div className="text-zinc-400 break-words">
@@ -388,7 +393,9 @@ export default function DevTools() {
                       </div>
                     )
                   ) : (
-                    <div className="text-red-300/90 break-words whitespace-pre-wrap">{geminiResult.error}</div>
+                    <div className="text-red-300/90 break-words whitespace-pre-wrap font-mono text-[10px] mt-2 bg-red-950/20 p-2 rounded border border-red-900/30">
+                      {geminiResult.error}
+                    </div>
                   )}
                 </div>
               )}
