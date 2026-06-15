@@ -2,9 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Loader2, AlertCircle, ShieldCheck, Recycle, CheckCircle2, MapPin, X, Zap, FileText, ChevronDown, Leaf, Coins,
+  Loader2, AlertCircle, ShieldCheck, Recycle, CheckCircle2, MapPin, X, Zap, FileText, ChevronDown, Leaf, Coins, Code,
 } from 'lucide-react';
-import { getResaleListing } from '../services/resale.service';
+import { getResaleListing, getDevLogs } from '../services/resale.service';
 import { createOrder } from '../services/order.service';
 import { getUserImpact, redeemCredits } from '../services/sustainability.service';
 import { useCustomUser } from '../context/CustomUserContext';
@@ -37,6 +37,11 @@ export default function ResaleListingDetailPage() {
   const [creditBalance, setCreditBalance] = useState(0);
   const [useCredits, setUseCredits] = useState(false);
   const [creditsRedeemed, setCreditsRedeemed] = useState(0);
+
+  // Dev Logs modal
+  const [showDevLogs, setShowDevLogs] = useState(false);
+  const [devLogs, setDevLogs] = useState(null);
+  const [devLogsLoading, setDevLogsLoading] = useState(false);
 
   const fetchListing = useCallback(async () => {
     try {
@@ -90,6 +95,21 @@ export default function ResaleListingDetailPage() {
       setOrderError(err.response?.data?.message || 'Failed to place order. Please try again.');
     } finally {
       setIsOrdering(false);
+    }
+  };
+
+  const handleShowDevLogs = async () => {
+    setShowDevLogs(true);
+    if (!devLogs) {
+      setDevLogsLoading(true);
+      try {
+        const res = await getDevLogs(id);
+        if (res.success) setDevLogs(res.data);
+      } catch (err) {
+        console.error('Failed to load dev logs:', err);
+      } finally {
+        setDevLogsLoading(false);
+      }
     }
   };
 
@@ -270,6 +290,17 @@ export default function ResaleListingDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Dev Logs Button - Bottom Left */}
+        <div className="fixed bottom-6 left-6 z-40">
+          <button
+            onClick={handleShowDevLogs}
+            className="flex items-center gap-2 bg-gray-700 hover:bg-gray-800 text-white px-4 py-2.5 rounded-lg shadow-lg text-sm font-semibold transition-all"
+          >
+            <Code className="w-4 h-4" />
+            Dev Logs
+          </button>
+        </div>
       </div>
 
       {/* Checkout modal */}
@@ -342,6 +373,160 @@ export default function ResaleListingDetailPage() {
               >
                 {isOrdering ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Place Order'}
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Dev Logs Modal */}
+      <AnimatePresence>
+        {showDevLogs && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-5xl bg-gray-900 text-gray-100 rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-700">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Code className="w-5 h-5 text-emerald-400" />
+                  Developer Logs - Algorithm & Calculations
+                </h2>
+                <button onClick={() => setShowDevLogs(false)} className="text-gray-400 hover:text-gray-200">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto p-5 space-y-5">
+                {devLogsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+                  </div>
+                ) : devLogs ? (
+                  <>
+                    {/* Summary */}
+                    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                      <h3 className="text-sm font-bold text-emerald-400 mb-3">Listing Summary</h3>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div><span className="text-gray-400">Item ID:</span> <code className="text-gray-200">{devLogs.itemId}</code></div>
+                        <div><span className="text-gray-400">Intake Path:</span> <code className="text-amber-300">{devLogs.intakePath}</code></div>
+                        <div><span className="text-gray-400">Status:</span> <code className="text-emerald-300">{devLogs.status}</code></div>
+                        <div><span className="text-gray-400">Auto-Listed:</span> <code className="text-cyan-300">{devLogs.autoListed ? 'Yes' : 'No'}</code></div>
+                        <div><span className="text-gray-400">Created:</span> <code className="text-gray-200">{new Date(devLogs.createdAt).toLocaleString()}</code></div>
+                        {devLogs.publishedAt && (
+                          <div><span className="text-gray-400">Published:</span> <code className="text-gray-200">{new Date(devLogs.publishedAt).toLocaleString()}</code></div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Grading Details */}
+                    {devLogs.gradeDetails && (
+                      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                        <h3 className="text-sm font-bold text-emerald-400 mb-3">AI Grading Analysis</h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="grid grid-cols-3 gap-3">
+                            <div><span className="text-gray-400">Grade:</span> <span className="font-bold text-xl text-emerald-300">{devLogs.gradeDetails.grade}</span></div>
+                            <div><span className="text-gray-400">Quality Score:</span> <span className="font-bold text-xl text-cyan-300">{devLogs.gradeDetails.qualityScore}/100</span></div>
+                            <div><span className="text-gray-400">Confidence:</span> <code className="text-amber-300">{devLogs.gradeDetails.confidence}</code></div>
+                          </div>
+                          <div><span className="text-gray-400">Estimated Resale %:</span> <code className="text-emerald-300">{(devLogs.gradeDetails.estimatedResalePct * 100).toFixed(1)}%</code></div>
+                          <div><span className="text-gray-400">Routing Hint:</span> <code className="text-cyan-300">{devLogs.gradeDetails.routingHint}</code></div>
+                          <div><span className="text-gray-400">Return Claim Verified:</span> <code className="text-amber-300">{devLogs.gradeDetails.returnClaimVerified ? 'Yes' : 'No'}</code></div>
+                          {devLogs.gradeDetails.rationale && (
+                            <div className="mt-2 pt-2 border-t border-gray-700">
+                              <span className="text-gray-400 block mb-1">AI Rationale:</span>
+                              <p className="text-gray-200 text-sm leading-relaxed">{devLogs.gradeDetails.rationale}</p>
+                            </div>
+                          )}
+                          {devLogs.gradeDetails.defects?.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-gray-700">
+                              <span className="text-gray-400 block mb-2">Detected Defects:</span>
+                              <ul className="space-y-1">
+                                {devLogs.gradeDetails.defects.map((d, i) => (
+                                  <li key={i} className="text-orange-300 text-xs">• {d.severity} {d.type} {d.location && `(${d.location})`}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Pricing Calculation */}
+                    {devLogs.pricingCalculation && (
+                      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                        <h3 className="text-sm font-bold text-emerald-400 mb-3">Pricing Algorithm</h3>
+                        <div className="space-y-2 text-sm font-mono">
+                          <div className="text-gray-400 mb-2">Formula: <code className="text-cyan-300">{devLogs.pricingCalculation.formula}</code></div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div><span className="text-gray-400">Original Price:</span> <code className="text-emerald-300">₹{devLogs.pricingCalculation.originalPrice.toLocaleString()}</code></div>
+                            <div><span className="text-gray-400">Resale %:</span> <code className="text-cyan-300">{(devLogs.pricingCalculation.estimatedResalePct * 100).toFixed(1)}%</code></div>
+                            <div><span className="text-gray-400">Demand Count:</span> <code className="text-amber-300">{devLogs.pricingCalculation.demandCount}</code></div>
+                            <div><span className="text-gray-400">Demand Multiplier:</span> <code className="text-amber-300">{devLogs.pricingCalculation.demandMultiplier.toFixed(2)}x</code></div>
+                          </div>
+                          <div className="mt-3 pt-3 border-t border-gray-700 text-gray-300">
+                            Calculation: <code className="text-gray-100">{devLogs.pricingCalculation.calculation}</code>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 mt-2">
+                            <div><span className="text-gray-400">Suggested Price:</span> <code className="text-lg font-bold text-emerald-300">₹{devLogs.pricingCalculation.suggestedPrice.toLocaleString()}</code></div>
+                            <div><span className="text-gray-400">Final Price:</span> <code className="text-lg font-bold text-cyan-300">₹{devLogs.pricingCalculation.finalPrice.toLocaleString()}</code></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Routing Decision */}
+                    {devLogs.routingDetails && (
+                      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                        <h3 className="text-sm font-bold text-emerald-400 mb-3">Routing Decision</h3>
+                        <div className="space-y-2 text-sm">
+                          <div><span className="text-gray-400">Chosen Path:</span> <code className="text-lg font-bold text-emerald-300">{devLogs.routingDetails.chosenPath}</code></div>
+                          <div><span className="text-gray-400">Refund Timing:</span> <code className="text-cyan-300">{devLogs.routingDetails.refundTiming}</code></div>
+                          {devLogs.routingDetails.chosenWarehouse && (
+                            <div><span className="text-gray-400">Warehouse:</span> <code className="text-amber-300">{devLogs.routingDetails.chosenWarehouse.name} ({devLogs.routingDetails.chosenWarehouse.city})</code></div>
+                          )}
+                          <div><span className="text-gray-400">Demand Signal:</span> <code className="text-cyan-300">{devLogs.routingDetails.demandSignal.count || 0} buyers within {devLogs.routingDetails.demandSignal.radiusKm || 25}km</code></div>
+                          {devLogs.routingDetails.hardGatesApplied?.length > 0 && (
+                            <div><span className="text-gray-400">Hard Gates Applied:</span> <code className="text-red-300">{devLogs.routingDetails.hardGatesApplied.join(', ')}</code></div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Complete Pipeline Logs */}
+                    {devLogs.logs?.length > 0 && (
+                      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                        <h3 className="text-sm font-bold text-emerald-400 mb-3">Complete Pipeline Logs ({devLogs.logs.length} events)</h3>
+                        <div className="space-y-1 max-h-96 overflow-y-auto text-xs font-mono">
+                          {devLogs.logs.map((log, i) => (
+                            <div key={i} className={`py-1 px-2 rounded ${
+                              log.level === 'error' ? 'bg-red-900/30 text-red-300' :
+                              log.level === 'warn' ? 'bg-amber-900/30 text-amber-300' :
+                              log.level === 'success' ? 'bg-emerald-900/30 text-emerald-300' :
+                              'bg-gray-700/50 text-gray-300'
+                            }`}>
+                              <span className="text-gray-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                              {' | '}
+                              <span className="text-cyan-400">{log.phase}</span>
+                              {' | '}
+                              <span className="font-semibold">{log.step}</span>
+                              {' | '}
+                              <span>{log.message}</span>
+                              {log.durationMs && <span className="text-gray-500"> ({log.durationMs}ms)</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-12 text-gray-400">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+                    <p>Could not load developer logs.</p>
+                  </div>
+                )}
+              </div>
             </motion.div>
           </div>
         )}

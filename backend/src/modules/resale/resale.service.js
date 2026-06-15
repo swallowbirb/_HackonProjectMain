@@ -187,6 +187,10 @@ const createDraftFromRouting = async ({ itemId, routingDecision, grade }) => {
   const suggestedPrice = computeSuggestedPrice(originalPrice, gradeDoc.estimatedResalePct, demandCount);
   const conditionLane = GRADE_TO_CONDITION_LANE[gradeDoc.grade] || 'fair';
 
+  // Auto-list if this is a return path (not sell-used)
+  const autoListed = item.intakePath === 'return';
+  const initialStatus = autoListed ? 'PUBLISHED' : 'DRAFT';
+
   const listing = await ResaleListing.create({
     itemId,
     gradeId: gradeDoc._id || item.gradeId || null,
@@ -214,16 +218,58 @@ const createDraftFromRouting = async ({ itemId, routingDecision, grade }) => {
     defects: gradeDoc.defects || [],
     previousOwnerNotes: item.ownerNotes || '',
     demandCount,
-    status: 'DRAFT',
+    status: initialStatus,
     peerRedistribute: chosenPath === 'peer-redistribute',
+    autoListed,
   });
 
   await ItemLogger.log(
     itemId,
     'RESALE_DRAFT',
-    `🏷️ Resale draft created — Grade ${gradeDoc.grade}, suggested ₹${suggestedPrice} (demand: ${demandCount})`,
-    { listingId: String(listing._id), suggestedPrice, demandCount, conditionLane }
+    `🏷️ Resale ${autoListed ? 'auto-listing' : 'draft'} created — Grade ${gradeDoc.grade}, ${autoListed ? 'price' : 'suggested'} ₹${suggestedPrice} (demand: ${demandCount})`,
+    { listingId: String(listing._id), suggestedPrice, demandCount, conditionLane, autoListed }
   );
+
+  // If auto-listed, create the marketplace mirror Product immediately
+  if (autoListed) {
+    try {
+      const product = await Product.create({
+        title: listing.title || 'Pre-owned item',
+        description: listing.description || 'Certified pre-owned item.',
+        price: listing.price || listing.suggestedPrice || 1,
+        category: listing.category || 'general',
+        images: listing.images || [],
+        condition: 'Used',
+        sellerId: listing.sellerId,
+        status: 'approved',
+      });
+      listing.marketplaceProductId = product._id;
+      await listing.save();
+
+      // Walk item state machine forward
+      try {
+        const item = await Item.findById(listing.itemId);
+        if (item && item.status === 'ROUTED') {
+          await itemService.transitionStatus(listing.itemId, 'IN_TRANSIT', { userId: null, role: 'system' });
+          await itemService.transitionStatus(listing.itemId, 'LISTED', { userId: null, role: 'system' });
+          await Item.findByIdAndUpdate(listing.itemId, { listingId: product._id });
+        }
+      } catch (err) {
+        console.warn(`[resale] item transition on auto-list skipped: ${err.message}`);
+      }
+
+      await ItemLogger.log(itemId, 'AUTO_LISTED', 
+        `🏬 Auto-listed to Second Life shop (₹${listing.price || listing.suggestedPrice}) — return completed`,
+        { listingId: String(listing._id), marketplaceProductId: String(product._id), price: listing.price || listing.suggestedPrice }
+      );
+    } catch (err) {
+      console.warn(`[resale] Auto-publish failed for ${listing._id}: ${err.message}`);
+      await ItemLogger.log(itemId, 'AUTO_LIST_FAILED',
+        `⚠️ Auto-listing to marketplace failed — ${err.message}`,
+        { level: 'warn', error: err.message }
+      );
+    }
+  }
 
   return listing;
 };
@@ -447,6 +493,103 @@ function assertSellerOrAdmin(listing, user) {
   throw new Error('Forbidden');
 }
 
+/**
+ * Get comprehensive developer logs for a listing showing complete pipeline:
+ * grading analysis, routing decision, pricing calculations, etc.
+ */
+const getDevLogs = async (listingId) => {
+  if (!mongoose.isValidObjectId(listingId)) return null;
+
+  const listing = await ResaleListing.findById(listingId).lean();
+  if (!listing) return null;
+
+  const ItemLog = require('../items/itemLog.model');
+  const Grade = require('../grading/grading.model');
+
+  // Get all item logs (complete pipeline history)
+  const logs = await ItemLog.find({ itemId: listing.itemId })
+    .sort({ timestamp: 1, seq: 1 })
+    .lean();
+
+  // Get complete grade details including evidence bundle
+  let gradeDetails = null;
+  if (listing.gradeId) {
+    const grade = await Grade.findById(listing.gradeId).lean();
+    if (grade) {
+      gradeDetails = {
+        grade: grade.grade,
+        qualityScore: grade.qualityScore,
+        confidence: grade.confidence,
+        estimatedResalePct: grade.estimatedResalePct,
+        routingHint: grade.routingHint,
+        defects: grade.defects || [],
+        missingEvidence: grade.missingEvidence || [],
+        rationale: grade.rationale,
+        returnClaimVerified: grade.returnClaimVerified,
+        modelVersions: grade.modelVersions || {},
+        analysisSummary: grade.evidenceBundle?.analysisSummary || {},
+        fraud: grade.evidenceBundle?.fraud || {},
+      };
+    }
+  }
+
+  // Get routing decision details
+  let routingDetails = null;
+  if (listing.routingDecisionId) {
+    const rd = await RoutingDecision.findById(listing.routingDecisionId).lean();
+    if (rd) {
+      routingDetails = {
+        chosenPath: rd.chosenPath,
+        rankedAlternatives: rd.rankedAlternatives || [],
+        hardGatesApplied: rd.hardGatesApplied || [],
+        reverseLogisticsCost: rd.reverseLogisticsCost || 0,
+        demandSignal: rd.demandSignal || {},
+        refundTiming: rd.refundTiming,
+        refundHold: rd.refundHold,
+        refundHoldReason: rd.refundHoldReason,
+        chosenWarehouse: rd.chosenWarehouse || null,
+        matchWindow: rd.matchWindow || {},
+        tags: rd.tags || [],
+      };
+    }
+  }
+
+  // Calculate pricing breakdown
+  const pricingCalculation = {
+    originalPrice: listing.originalPrice || 0,
+    estimatedResalePct: gradeDetails?.estimatedResalePct || 0,
+    demandCount: listing.demandCount || 0,
+    demandMultiplier: 1 + Math.min((listing.demandCount || 0) / 10, 0.5),
+    suggestedPrice: listing.suggestedPrice || 0,
+    finalPrice: listing.price || 0,
+    formula: 'round(originalPrice × estimatedResalePct × (1 + min(demandCount/10, 0.5)))',
+    calculation: `${listing.originalPrice} × ${gradeDetails?.estimatedResalePct || 0} × ${(1 + Math.min((listing.demandCount || 0) / 10, 0.5)).toFixed(2)} = ${listing.suggestedPrice}`,
+  };
+
+  return {
+    listingId: listing._id,
+    itemId: listing.itemId,
+    intakePath: listing.intakePath,
+    autoListed: listing.autoListed || false,
+    status: listing.status,
+    createdAt: listing.createdAt,
+    publishedAt: listing.status === 'PUBLISHED' ? listing.updatedAt : null,
+    gradeDetails,
+    routingDetails,
+    pricingCalculation,
+    logs: logs.map(log => ({
+      timestamp: log.timestamp,
+      step: log.step,
+      message: log.message,
+      level: log.level,
+      phase: log.phase,
+      source: log.source,
+      durationMs: log.durationMs,
+      metadata: log.metadata || {},
+    })),
+  };
+};
+
 module.exports = {
   createDraftFromRouting,
   publish,
@@ -455,4 +598,5 @@ module.exports = {
   getPublicListing,
   getStorefront,
   getSellerListings,
+  getDevLogs,
 };

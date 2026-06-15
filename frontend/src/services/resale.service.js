@@ -38,3 +38,11 @@ export const updateResalePrice = async (id, price) => {
   const response = await api.patch(`/resale/${id}/price`, { price });
   return response.data;
 };
+
+/**
+ * Get developer logs for a resale listing (algorithm and calculations).
+ */
+export const getDevLogs = async (id) => {
+  const response = await api.get(`/resale/${id}/dev-logs`);
+  return response.data;
+};

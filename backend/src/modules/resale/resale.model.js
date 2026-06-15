@@ -62,6 +62,9 @@ const resaleListingSchema = new mongoose.Schema(
 
     // Mirror Product created on publish so buyers reuse the existing order flow.
     marketplaceProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
+
+    // Auto-listed flag - true if this listing was automatically created after return completion
+    autoListed: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

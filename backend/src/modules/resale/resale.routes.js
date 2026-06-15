@@ -25,4 +25,7 @@ router.patch('/:id/price', sellerAuth, validateUpdatePrice, resaleController.upd
 // Public listing detail — keep last so it doesn't shadow static routes.
 router.get('/:id', resaleController.getListing);
 
+// Dev logs endpoint (developer visibility for algorithm and calculations).
+router.get('/:id/dev-logs', resaleController.getDevLogs);
+
 module.exports = router;

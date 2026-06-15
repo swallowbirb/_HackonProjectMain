@@ -52,6 +52,20 @@ const getListing = async (req, res, next) => {
 };
 
 /**
+ * GET /api/resale/:id/dev-logs — developer logs showing algorithm and calculations.
+ * Returns complete pipeline logs: grading, routing decision, pricing calculations, etc.
+ */
+const getDevLogs = async (req, res, next) => {
+  try {
+    const logs = await resaleService.getDevLogs(req.params.id);
+    if (!logs) return res.status(404).json({ success: false, message: 'Listing or logs not found' });
+    return res.status(200).json({ success: true, data: logs });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/**
  * POST /api/resale/:id/publish
  */
 const publish = async (req, res, next) => {
@@ -87,4 +101,4 @@ const updatePrice = async (req, res, next) => {
   }
 };
 
-module.exports = { getStorefront, getSellerListings, getListing, publish, unlist, updatePrice };
+module.exports = { getStorefront, getSellerListings, getListing, getDevLogs, publish, unlist, updatePrice };
