@@ -11,7 +11,7 @@
 // ── Map canvas (matches the admin Demand Map for visual parity) ───────────────
 export const MAP_W = 560;
 export const MAP_H = 560;
-const MAP_WIDTH_KM = 320;
+const MAP_WIDTH_KM = 570;
 export const KM_PER_PX = MAP_WIDTH_KM / MAP_W;
 
 // Evenly-spread warehouse layout (fractions of the viewport).
@@ -29,6 +29,17 @@ export const WAREHOUSE_LAYOUT = {
 // is always visible). Demo origin is Raipur (routing.config DEFAULT_ORIGIN).
 export const SOURCE_POINT = { fx: 0.36, fy: 0.66, city: 'Raipur' };
 
+// All demo cities selectable as reseller origin
+export const DEMO_CITIES = [
+  { city: 'Raipur',     fx: 0.36, fy: 0.66 },
+  { city: 'Bhilai',    fx: 0.22, fy: 0.54 },
+  { city: 'Durg',      fx: 0.18, fy: 0.82 },
+  { city: 'Bilaspur',  fx: 0.46, fy: 0.15 },
+  { city: 'Korba',     fx: 0.80, fy: 0.23 },
+  { city: 'Raigarh',   fx: 0.85, fy: 0.48 },
+  { city: 'Jagdalpur', fx: 0.56, fy: 0.85 },
+];
+
 const BOUNDS = { minLng: 80.5, maxLng: 84.0, minLat: 18.5, maxLat: 22.8 };
 
 export const projectGeo = ([lng, lat]) => ({
@@ -42,7 +53,13 @@ export const warehousePos = (warehouseCode, coords) => {
   return coords ? projectGeo(coords) : { x: MAP_W / 2, y: MAP_H / 2 };
 };
 
-export const sourcePos = () => ({ x: SOURCE_POINT.fx * MAP_W, y: SOURCE_POINT.fy * MAP_H });
+export const sourcePos = (city) => {
+  if (city) {
+    const c = DEMO_CITIES.find((d) => d.city === city);
+    if (c) return { x: c.fx * MAP_W, y: c.fy * MAP_H };
+  }
+  return { x: SOURCE_POINT.fx * MAP_W, y: SOURCE_POINT.fy * MAP_H };
+};
 
 export const pixelDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 

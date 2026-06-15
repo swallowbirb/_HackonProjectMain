@@ -36,22 +36,6 @@ export default function HomePage() {
     <div className="min-h-screen bg-[#EAEDED]">
 
 
-      {/* Trust/Security Badges */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6 py-4 flex flex-wrap items-center justify-center gap-8">
-          {[
-            { icon: <Shield className="w-5 h-5 text-[#007600]" />, text: 'AI Fraud Detection' },
-            { icon: <Star className="w-5 h-5 text-[#FF9900]" />, text: 'Verified Reviews' },
-            { icon: <TrendingUp className="w-5 h-5 text-[#007185]" />, text: 'Risk Scoring' },
-            { icon: <Search className="w-5 h-5 text-[#C7511F]" />, text: 'Brand Protection' },
-          ].map(({ icon, text }) => (
-            <div key={text} className="flex items-center gap-2 text-sm text-gray-700 font-medium">
-              {icon} {text}
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="max-w-[1200px] mx-auto px-6 py-8 space-y-10">
 
 

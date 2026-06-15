@@ -160,15 +160,6 @@ export default function Navbar() {
                             Demand Map
                           </Link>
                         )}
-                        {role === 'seller' && (
-                          <Link
-                            to="/reseller/dashboard"
-                            onClick={() => setIsDropdownOpen(false)}
-                            className="block px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white rounded-lg transition-colors text-left"
-                          >
-                            Reseller Dashboard
-                          </Link>
-                        )}
                         <button
                           onClick={() => {
                             setIsDropdownOpen(false);
@@ -213,7 +204,8 @@ export default function Navbar() {
               </>
             )}
 
-            {/* Second-Life resale storefront — public to all */}
+            {/* Second-Life resale storefront — hidden for sellers and admins */}
+            {role !== 'seller' && role !== 'admin' && (
             <Link
               to="/resale"
               className="flex flex-col hover:outline hover:outline-white hover:outline-1 rounded px-2 py-1 transition-all cursor-pointer text-xs select-none justify-center"
@@ -221,6 +213,7 @@ export default function Navbar() {
               <span className="text-zinc-300 text-[11px] leading-tight">Shop</span>
               <span className="font-bold text-[13px] leading-tight text-emerald-400">Second-Life</span>
             </Link>
+            )}
 
             {/* Cart icon */}
             <Link to="/cart" className="relative flex items-end gap-1 hover:outline hover:outline-white hover:outline-1 rounded px-2 py-1 transition-all">

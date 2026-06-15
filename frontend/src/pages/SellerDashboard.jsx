@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSellerProducts, deleteProduct } from '../services/product.service';
@@ -9,10 +9,12 @@ import {
   PlusCircle, Package, Activity, AlertTriangle, CheckCircle, Clock,
   AlertCircle, Shield, Tag, ChevronRight, Loader2, Store, Users,
   ShoppingBag, Zap, ExternalLink, Trash2, ToggleLeft, ToggleRight, X,
-  Recycle, Check, Pencil,
+  Recycle, Check, Pencil, TrendingUp, Handshake, Leaf, Route, ArrowRight, Sparkles,
 } from 'lucide-react';
 import { useCustomUser } from '../context/CustomUserContext';
 import ReturnInsightsPanel from '../components/prevention/ReturnInsightsPanel';
+import ResaleRouteDetail from '../components/reseller/ResaleRouteDetail';
+import { inr } from '../lib/routingDemo';
 
 const StatusBadge = ({ status }) => {
   switch (status) {
@@ -90,6 +92,7 @@ const TABS = [
 ];
 
 const SellerDashboard = () => {
+  const [mode, setMode] = useState('seller'); // 'seller' | 'reseller'
   const [activeTab, setActiveTab] = useState('listings');
   const [products, setProducts] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -105,6 +108,8 @@ const SellerDashboard = () => {
   const [applyingId, setApplyingId] = useState(null);
   const [applyError, setApplyError] = useState('');
   const [showListingModal, setShowListingModal] = useState(false);
+  // Reseller route tracking
+  const [selectedResaleRoute, setSelectedResaleRoute] = useState(null);
   const navigate = useNavigate();
   const { mongoUser } = useCustomUser();
 
@@ -156,9 +161,10 @@ const SellerDashboard = () => {
     fetchOffers();
   }, [activeTab]);
 
-  // Load resale listings when tab is switched to 'resale'
+  // Load resale listings when tab is switched to 'resale' or reseller mode
   useEffect(() => {
-    if (activeTab !== 'resale') return;
+    if (activeTab !== 'resale' && mode !== 'reseller') return;
+    if (resaleListings.length > 0) return;
     const fetchResale = async () => {
       setIsLoadingResale(true);
       try {
@@ -171,7 +177,7 @@ const SellerDashboard = () => {
       }
     };
     fetchResale();
-  }, [activeTab]);
+  }, [activeTab, mode]);
 
   const handlePublishResale = async (listingId) => {
     setResaleBusyId(listingId);
@@ -280,7 +286,20 @@ const SellerDashboard = () => {
   const activeOffersCount = offers.filter((o) => o.status === 'active').length;
   const buyBoxCount = offers.filter((o) => o.isBuyBoxWinner).length;
 
+  // Reseller stats (derived from resaleListings)
+  const resellerStats = useMemo(() => {
+    const n = resaleListings.length;
+    const live = resaleListings.filter((l) => l.status === 'PUBLISHED').length;
+    const sold = resaleListings.filter((l) => l.status === 'SOLD').length;
+    const peers = resaleListings.filter((l) => l.peerRedistribute).length;
+    const recovery = resaleListings.reduce((s, l) => s + (l.price || l.suggestedPrice || 0), 0);
+    const demand = resaleListings.reduce((s, l) => s + (l.demandCount || 0), 0);
+    const co2 = (n * 3.4).toFixed(1);
+    return { n, live, sold, peers, recovery, demand, co2 };
+  }, [resaleListings]);
+
   return (
+    <>
     <div className="min-h-screen bg-[#EAEDED] p-6 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
 
@@ -373,25 +392,47 @@ const SellerDashboard = () => {
         >
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-              Seller Dashboard
+              {mode === 'seller' ? 'Seller Dashboard' : 'Reseller Dashboard'}
             </h1>
-            <p className="text-gray-500 mt-1 text-sm">Manage your listings and brand authorizations.</p>
+            <p className="text-gray-500 mt-1 text-sm">
+              {mode === 'seller'
+                ? 'Manage your listings and brand authorizations.'
+                : 'Track returned & resold items from pickup to second life.'}
+            </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/reseller/dashboard')}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-full font-medium transition-colors shadow-sm"
-            >
-              <Recycle className="w-5 h-5" />
-              Reseller Dashboard
-            </button>
-            <button
-              onClick={() => setShowListingModal(true)}
-              className="flex items-center gap-2 bg-[#FF9900] hover:bg-[#FFB347] text-black px-5 py-2.5 rounded-full font-medium transition-colors shadow-sm"
-            >
-              <PlusCircle className="w-5 h-5" />
-              New Listing
-            </button>
+            {/* Mode Toggle */}
+            <div className="flex items-center bg-gray-100 rounded-full p-1 gap-1">
+              <button
+                onClick={() => setMode('seller')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  mode === 'seller'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Store className="w-4 h-4" /> Sell
+              </button>
+              <button
+                onClick={() => { setMode('reseller'); if (resaleListings.length === 0) { setActiveTab('resale'); } }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  mode === 'reseller'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Recycle className="w-4 h-4" /> Resell
+              </button>
+            </div>
+            {mode === 'seller' && (
+              <button
+                onClick={() => setShowListingModal(true)}
+                className="flex items-center gap-2 bg-[#FF9900] hover:bg-[#FFB347] text-black px-5 py-2.5 rounded-full font-medium transition-colors shadow-sm"
+              >
+                <PlusCircle className="w-5 h-5" />
+                New Listing
+              </button>
+            )}
           </div>
         </motion.div>
 
@@ -412,13 +453,13 @@ const SellerDashboard = () => {
           </motion.div>
         )}
 
+        {/* ── SELLER MODE ─────────────────────────────────────────────── */}
+        {mode === 'seller' && (<>
+
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-1 gap-4">
           {[
             { label: 'Total Listings', value: products.length, icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Active Offers', value: offers.length > 0 ? activeOffersCount : '—', icon: ShoppingBag, color: 'text-[#FF9900]', bg: 'bg-amber-50' },
-            { label: 'Buy Box Wins', value: buyBoxCount || '—', icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { label: 'Flagged Issues', value: products.filter((p) => p.status === 'flagged').length, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
           ].map((stat, idx) => (
             <motion.div
               key={stat.label}
@@ -1009,8 +1050,126 @@ const SellerDashboard = () => {
           )}
 
         </AnimatePresence>
+        </>)} {/* end seller mode */}
+
+        {/* ── RESELLER MODE ───────────────────────────────────────────── */}
+        {mode === 'reseller' && (
+          <motion.div
+            key="reseller-view"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* Reseller Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { label: 'Items diverted', value: resellerStats.n, icon: Recycle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { label: 'Live listings', value: resellerStats.live, icon: Tag, color: 'text-blue-600', bg: 'bg-blue-50' },
+                { label: 'Recovery value', value: inr(resellerStats.recovery), icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                { label: 'Peer handoffs', value: resellerStats.peers, icon: Handshake, color: 'text-violet-600', bg: 'bg-violet-50' },
+                { label: 'Buyers reached', value: resellerStats.demand, icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
+                { label: 'CO₂e avoided', value: `${resellerStats.co2} kg`, icon: Leaf, color: 'text-green-600', bg: 'bg-green-50' },
+              ].map((s, i) => (
+                <motion.div
+                  key={s.label}
+                  initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  className="bg-white border border-gray-200 p-4 rounded-2xl shadow-sm"
+                >
+                  <div className={`w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center mb-2`}>
+                    <s.icon className="w-5 h-5" />
+                  </div>
+                  <p className="text-lg font-bold text-gray-900 leading-none">{s.value}</p>
+                  <p className="text-[11px] text-gray-500 mt-1">{s.label}</p>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Resale Routes List */}
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Route className="w-5 h-5 text-gray-400" /> Resale Routes
+                </h2>
+                <span className="text-xs text-gray-400">{resellerStats.n} item{resellerStats.n !== 1 ? 's' : ''}</span>
+              </div>
+
+              {isLoadingResale ? (
+                <div className="p-16 flex items-center justify-center">
+                  <Loader2 className="w-7 h-7 animate-spin text-gray-400" />
+                </div>
+              ) : resaleListings.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Recycle className="w-8 h-8 text-gray-300" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">No resale routes yet</h3>
+                  <p className="text-gray-500 text-sm max-w-md mx-auto">
+                    When a returned or graded item is routed for resale, it shows up here with its full journey.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-100">
+                  {resaleListings.map((l, i) => {
+                    const img = l.images?.[0] || 'https://picsum.photos/seed/resale/200/200';
+                    const GRADE_BG = { A: 'bg-emerald-500', B: 'bg-blue-500', C: 'bg-orange-500', D: 'bg-red-500' };
+                    const STATUS_PILL = {
+                      DRAFT: 'bg-gray-100 text-gray-600',
+                      PUBLISHED: 'bg-emerald-100 text-emerald-700',
+                      UNLISTED: 'bg-amber-100 text-amber-700',
+                      SOLD: 'bg-indigo-100 text-indigo-700',
+                    };
+                    return (
+                      <motion.button
+                        key={l._id}
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i * 0.03, 0.3) }}
+                        onClick={() => setSelectedResaleRoute(l)}
+                        className="text-left bg-white hover:bg-indigo-50/40 transition-colors p-4 flex items-center gap-4 group"
+                      >
+                        <div className="relative flex-shrink-0">
+                          <img src={img} alt={l.title} className="w-16 h-16 rounded-xl object-cover border border-gray-200" />
+                          <span className={`absolute -top-1.5 -left-1.5 w-6 h-6 rounded-lg text-white text-xs font-black flex items-center justify-center ${GRADE_BG[l.grade] || 'bg-zinc-400'}`}>
+                            {l.grade}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-gray-900 text-sm truncate group-hover:text-indigo-700">{l.title}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_PILL[l.status] || 'bg-gray-100 text-gray-600'}`}>
+                              {l.status}
+                            </span>
+                            {l.peerRedistribute && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 inline-flex items-center gap-1">
+                                <Handshake className="w-2.5 h-2.5" /> Peer
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-400">{inr(l.price)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-indigo-600 text-xs font-semibold flex-shrink-0">
+                          Track <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <p className="text-center text-[11px] text-gray-400 flex items-center justify-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> Routing uses the same "best warehouse, not nearest" engine as production.
+            </p>
+          </motion.div>
+        )}
+
       </div>
     </div>
+
+    <AnimatePresence>
+      {selectedResaleRoute && (
+        <ResaleRouteDetail listing={selectedResaleRoute} onClose={() => setSelectedResaleRoute(null)} />
+      )}
+    </AnimatePresence>
+    </>
   );
 };
 
