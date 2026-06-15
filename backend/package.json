@@ -147,6 +147,7 @@
     "test:trust": "node --test src/modules/trust/__tests__/trust.scoring.test.js",
     "seed": "node seed.js",
     "seed:products": "node seed-products.js",
+    "seed:graded": "node seed-graded.js",
     "seed:trust": "node seed-trust.js",
     "seed:sustainability": "node seed-sustainability.js",
     "seed:phase8": "node seed-phase8-demo.js",

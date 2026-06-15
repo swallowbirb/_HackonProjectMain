@@ -89,7 +89,7 @@ async function seedWants() {
   let userIdx = 0;
   for (const cluster of clusters) {
     for (let i = 0; i < cluster.count; i++) {
-      const [text, category, maxPrice] = TEMPLATES[(i + userIdx) % TEMPLATES.length];
+      const [text, category, maxPrice] = TEMPLATES[total % TEMPLATES.length];
       const user = await ensureDemoUser(userIdx++);
       await demandService.createWant(user._id, {
         text,

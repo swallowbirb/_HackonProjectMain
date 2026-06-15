@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Package, Users, AlertTriangle, CheckCircle, Clock,
   XCircle, Ban, Pause, Play, Search, ChevronLeft, ChevronRight,
-  RefreshCw, TrendingUp, Eye, ChevronDown, ChevronUp, Sparkles, Zap, ZapOff
+  RefreshCw, TrendingUp, Eye, ChevronDown, ChevronUp, Sparkles, Zap, ZapOff, MapPin
 } from 'lucide-react';
 import {
   getStats,
@@ -1135,9 +1136,25 @@ const AdminDashboard = () => {
               <p className="text-xs text-zinc-500">Trust & Safety Platform</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-violet-400" />
-            <span className="text-xs text-zinc-500">Live Moderation</span>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/admin/routing"
+              className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+              Routing
+            </Link>
+            <Link
+              to="/admin/demand-map"
+              className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <MapPin className="w-3.5 h-3.5 text-violet-400" />
+              Demand Map
+            </Link>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-violet-400" />
+              <span className="text-xs text-zinc-500">Live Moderation</span>
+            </div>
           </div>
         </div>
       </div>

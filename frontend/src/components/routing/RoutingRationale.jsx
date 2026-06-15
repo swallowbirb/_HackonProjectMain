@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, MapPin, ShieldAlert, Warehouse, Handshake, Sparkles } from 'lucide-react';
+import { Loader2, MapPin, ShieldAlert, Warehouse, Handshake, Sparkles, RefreshCw } from 'lucide-react';
 import { computeRouting, getRoutingDecision } from '../../services/routing.service';
 
 const PATH_LABELS = {
@@ -13,19 +13,21 @@ const PATH_LABELS = {
 };
 
 const REFUND_LABELS = {
-  immediate: 'Refunded immediately',
+  immediate: 'Refund issued immediately',
   'on-resolution': 'Refund on resolution',
-  'on-inspection': 'Refund withheld — manual verification required',
+  'on-inspection': 'Refund withheld — manual inspection required',
   rejected: 'Return rejected — no refund',
 };
 
-/**
- * RoutingRationale — visualises a routing decision: six ₹-labelled score bars,
- * the winner, any hard-gate badge, the refund-hold notice, the nearby-demand
- * count, and the chosen warehouse.
- *
- * Props: { itemId, autoCompute=false }
- */
+const PATH_COLOR = {
+  resell: 'bg-violet-500',
+  refurbish: 'bg-blue-500',
+  'peer-redistribute': 'bg-emerald-500',
+  donate: 'bg-teal-500',
+  liquidate: 'bg-zinc-500',
+  'return-to-seller': 'bg-red-500',
+};
+
 export default function RoutingRationale({ itemId, autoCompute = false }) {
   const [decision, setDecision] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -40,7 +42,7 @@ export default function RoutingRationale({ itemId, autoCompute = false }) {
       setDecision(d);
     } catch (err) {
       if (err.response?.status === 404) {
-        setDecision(null); // not routed yet
+        setDecision(null);
       } else {
         setError(err.response?.data?.message || 'Could not load routing decision.');
       }
@@ -63,28 +65,32 @@ export default function RoutingRationale({ itemId, autoCompute = false }) {
   };
 
   useEffect(() => {
-    load().then(() => {
-      if (autoCompute) run();
-    });
+    load().then(() => { if (autoCompute) run(); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
   if (loading) {
-    return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-zinc-400" /></div>;
+    return (
+      <div className="flex justify-center py-10">
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+      </div>
+    );
   }
 
   if (!decision) {
     return (
-      <div className="border border-gray-200 rounded-2xl p-5 bg-white">
-        <p className="text-sm text-gray-500 mb-3">This item hasn't been routed yet.</p>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-3">
+        <p className="text-sm text-zinc-400">This item hasn't been routed yet.</p>
         <button
           onClick={run}
           disabled={computing}
-          className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold px-4 py-2 rounded-xl text-sm"
+          className="inline-flex items-center gap-2 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/40 disabled:opacity-40 text-violet-200 font-semibold px-4 py-2 rounded-xl text-sm transition-colors"
         >
-          {computing ? <><Loader2 className="w-4 h-4 animate-spin" /> Routing…</> : <><Sparkles className="w-4 h-4" /> Run routing engine</>}
+          {computing
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Routing…</>
+            : <><Sparkles className="w-4 h-4" /> Run routing engine</>}
         </button>
-        {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+        {error && <p className="text-sm text-red-400 mt-1">{error}</p>}
       </div>
     );
   }
@@ -94,48 +100,63 @@ export default function RoutingRationale({ itemId, autoCompute = false }) {
   const winner = decision.chosenPath;
 
   return (
-    <div className="border border-gray-200 rounded-2xl p-5 bg-white space-y-4">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="font-black text-gray-900 text-lg">Disposition decision</h3>
-        <span className="inline-flex items-center gap-1.5 bg-indigo-100 text-indigo-700 font-bold px-3 py-1 rounded-full text-sm">
-          {decision.chosenWarehouse?.code ? <Warehouse className="w-4 h-4" /> : decision.matchWindow?.active ? <Handshake className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+        <h3 className="font-bold text-white text-base">Disposition decision</h3>
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+            winner === 'peer-redistribute' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' :
+            winner === 'resell' ? 'bg-violet-500/15 border-violet-500/30 text-violet-300' :
+            winner === 'refurbish' ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' :
+            winner === 'donate' ? 'bg-teal-500/15 border-teal-500/30 text-teal-300' :
+            winner === 'return-to-seller' ? 'bg-red-500/15 border-red-500/30 text-red-300' :
+            'bg-zinc-700 border-zinc-600 text-zinc-300'
+          }`}
+        >
+          {decision.chosenWarehouse?.code ? <Warehouse className="w-3.5 h-3.5" />
+            : decision.matchWindow?.active ? <Handshake className="w-3.5 h-3.5" />
+            : <Sparkles className="w-3.5 h-3.5" />}
           {PATH_LABELS[winner] || winner}
         </span>
       </div>
 
-      {/* Hard gate badge */}
+      {/* Hard gate */}
       {decision.hardGatesApplied?.length > 0 && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2 rounded-xl">
+        <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs px-3 py-2.5 rounded-xl">
           <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-          <span>Hard gate: <strong>{decision.hardGatesApplied.join(', ')}</strong> — overrode the score.</span>
+          Hard gate: <span className="font-bold ml-1">{decision.hardGatesApplied.join(', ')}</span> — overrode scoring.
         </div>
       )}
 
-      {/* Nearby demand */}
-      <div className="flex items-center gap-2 text-sm text-gray-600">
-        <MapPin className="w-4 h-4 text-indigo-500" />
-        📍 {decision.demandSignal?.count ?? 0} buyer(s) within {decision.demandSignal?.radiusKm ?? '—'} km
+      {/* Demand */}
+      <div className="flex items-center gap-2 text-xs text-zinc-400">
+        <MapPin className="w-3.5 h-3.5 text-violet-400" />
+        {decision.demandSignal?.count ?? 0} nearby buyer(s) within {decision.demandSignal?.radiusKm ?? '—'} km
       </div>
 
       {/* Score bars */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {alts.map((a) => {
           const isWinner = a.path === winner;
-          const pct = Math.max(4, (a.score / maxScore) * 100);
+          const pct = Math.max(3, (a.score / maxScore) * 100);
+          const barColor = isWinner
+            ? (PATH_COLOR[a.path] || 'bg-violet-500')
+            : 'bg-zinc-700';
           return (
             <div key={a.path}>
-              <div className="flex items-center justify-between text-xs mb-0.5">
-                <span className={isWinner ? 'font-bold text-gray-900' : 'text-gray-500'}>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className={isWinner ? 'font-bold text-white' : 'text-zinc-500'}>
                   {PATH_LABELS[a.path] || a.path}
                 </span>
-                <span className="text-gray-400">net ₹{a.netRecovery} · score {a.score}</span>
+                <span className="text-zinc-600">net ₹{a.netRecovery} · {a.score}</span>
               </div>
-              <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${pct}%` }}
-                  transition={{ duration: 0.5 }}
-                  className={`h-full rounded-full ${isWinner ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                  transition={{ duration: 0.45 }}
+                  className={`h-full rounded-full ${barColor}`}
                 />
               </div>
             </div>
@@ -143,37 +164,51 @@ export default function RoutingRationale({ itemId, autoCompute = false }) {
         })}
       </div>
 
-      {/* Chosen warehouse / peer hold */}
+      {/* Warehouse / peer hold */}
       {decision.chosenWarehouse?.code && (
-        <div className="text-sm bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-          <Warehouse className="w-4 h-4 inline mr-1.5 text-gray-500" />
-          Best warehouse: <strong>{decision.chosenWarehouse.name}</strong> ({decision.chosenWarehouse.city})
-          {decision.chosenWarehouse.breakdown && (
-            <span className="text-gray-400"> · {decision.chosenWarehouse.breakdown.distanceKm} km · inbound ₹{decision.chosenWarehouse.breakdown.inbound}</span>
-          )}
+        <div className="flex items-center gap-2 text-xs bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-300">
+          <Warehouse className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+          <span>
+            Best warehouse: <span className="font-semibold text-white">{decision.chosenWarehouse.name}</span>
+            <span className="text-zinc-500"> — {decision.chosenWarehouse.city}
+              {decision.chosenWarehouse.breakdown &&
+                ` · ${decision.chosenWarehouse.breakdown.distanceKm} km · inbound ₹${decision.chosenWarehouse.breakdown.inbound}`}
+            </span>
+          </span>
         </div>
       )}
       {decision.matchWindow?.active && (
-        <div className="text-sm bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-emerald-800">
-          <Handshake className="w-4 h-4 inline mr-1.5" />
-          Holding at home {decision.matchWindow.hours}h for a nearby peer buyer — no warehouse leg.
+        <div className="flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-3 py-2.5 text-emerald-300">
+          <Handshake className="w-4 h-4 flex-shrink-0" />
+          Holding at home {decision.matchWindow.hours}h — peer buyer match window active.
         </div>
       )}
 
-      {/* Refund notice */}
-      <div className={`text-sm px-3 py-2 rounded-xl border ${decision.refundHold ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
-        💰 {REFUND_LABELS[decision.refundTiming] || decision.refundTiming}
-        {decision.refundHoldReason && <span className="block text-xs mt-0.5 opacity-80">{decision.refundHoldReason}</span>}
+      {/* Refund */}
+      <div className={`text-xs px-3 py-2.5 rounded-xl border flex items-start gap-2 ${
+        decision.refundHold
+          ? 'bg-red-500/10 border-red-500/25 text-red-300'
+          : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
+      }`}>
+        <span>💰</span>
+        <span>
+          {REFUND_LABELS[decision.refundTiming] || decision.refundTiming}
+          {decision.refundHoldReason && (
+            <span className="block mt-0.5 opacity-70">{decision.refundHoldReason}</span>
+          )}
+        </span>
       </div>
 
+      {/* Recompute */}
       <button
         onClick={run}
         disabled={computing}
-        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+        className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40"
       >
-        {computing ? 'Recomputing…' : '↻ Recompute'}
+        <RefreshCw className={`w-3.5 h-3.5 ${computing ? 'animate-spin' : ''}`} />
+        {computing ? 'Recomputing…' : 'Recompute'}
       </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );
 }

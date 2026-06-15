@@ -16,6 +16,7 @@ import NewProductPage from './pages/NewProductPage';
 import EditProductPage from './pages/EditProductPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import DemandMapPage from './pages/admin/DemandMapPage';
+import AdminRoutingPage from './pages/admin/AdminRoutingPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import StorePage from './pages/StorePage';
@@ -211,6 +212,14 @@ function App() {
               <Route
                 path="/admin/demand-map"
                 element={<CustomSignedIn><AdminGuard><DemandMapPage /></AdminGuard></CustomSignedIn>}
+              />
+              <Route
+                path="/admin/routing/:itemId"
+                element={<CustomSignedIn><AdminGuard><AdminRoutingPage /></AdminGuard></CustomSignedIn>}
+              />
+              <Route
+                path="/admin/routing"
+                element={<CustomSignedIn><AdminGuard><AdminRoutingPage /></AdminGuard></CustomSignedIn>}
               />
             </Routes>
           </RoleGuard>

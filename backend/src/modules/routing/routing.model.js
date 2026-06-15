@@ -38,8 +38,32 @@ const routingSchema = new mongoose.Schema(
       count: { type: Number, default: 0 },
       radiusKm: { type: Number, default: 0 },
     },
+
+    // ── Phase A additions ──────────────────────────────────────────────────
+    // Item search tags (LLM/keyword) used for demand matching.
+    tags: { type: [String], default: [] },
+
+    // Refund timing decision (trust-driven).
+    refundTiming: {
+      type: String,
+      enum: ['immediate', 'on-resolution', 'on-inspection', 'rejected'],
+      default: 'on-resolution',
+    },
+    refundHold: { type: Boolean, default: false },
+    refundHoldReason: { type: String, default: null },
+
+    // Best-warehouse selection result (null for donate/liquidate/peer paths).
+    // { code, name, city, breakdown:{ distanceKm, inbound, expectedOutbound, demand } }
+    chosenWarehouse: { type: mongoose.Schema.Types.Mixed, default: null },
+
+    // Hold-at-home peer-match window (set only for peer-redistribute).
+    // { active:Boolean, hours:Number }
+    matchWindow: { type: mongoose.Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 );
+
+// One decision per item — recompute upserts in place.
+routingSchema.index({ itemId: 1 }, { unique: true });
 
 module.exports = mongoose.model('RoutingDecision', routingSchema);

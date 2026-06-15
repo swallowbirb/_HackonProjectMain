@@ -248,10 +248,10 @@ export default function ItemStatusPage() {
                     </div>
                   )}
 
-                  {/* Routing placeholder */}
-                  {!isDonated && (
-                    <div className="mt-5 border border-dashed border-gray-200 rounded-xl p-4 text-center">
-                      <p className="text-xs text-gray-400">Routing decision will appear here</p>
+                  {/* Routing — buyer sees a neutral status message, not internal decision */}
+                  {!isDonated && status?.status === 'ROUTED' && (
+                    <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
+                      Your item has been reviewed and is on its way to the next step. We'll update you shortly.
                     </div>
                   )}
                 </motion.div>
