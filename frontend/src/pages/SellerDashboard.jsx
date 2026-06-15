@@ -9,7 +9,7 @@ import {
   PlusCircle, Package, Activity, AlertTriangle, CheckCircle, Clock,
   AlertCircle, Shield, Tag, ChevronRight, Loader2, Store, Users,
   ShoppingBag, Zap, ExternalLink, Trash2, ToggleLeft, ToggleRight, X,
-  Recycle, Check, Pencil, TrendingUp, Handshake, Leaf, Route, ArrowRight, Sparkles, Truck, MapPin, Send, Users2, EyeOff, Eye,
+  Recycle, Check, Pencil, TrendingUp, Handshake, Leaf, Route, ArrowRight, Sparkles, Truck, MapPin, Send, Users2, EyeOff, Eye, Home,
 } from 'lucide-react';
 
 // Local-only "hide" so testing clutter can be tucked away without touching the DB.
@@ -450,6 +450,14 @@ const SellerDashboard = () => {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Home button */}
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-full font-medium transition-colors shadow-sm"
+            >
+              <Home className="w-4 h-4" />
+              Home
+            </button>
             {/* Mode Toggle */}
             <div className="flex items-center bg-gray-100 rounded-full p-1 gap-1">
               <button
