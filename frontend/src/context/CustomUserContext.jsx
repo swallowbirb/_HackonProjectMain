@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { setAuthToken } from "../services/api";
+import { setAuthToken, setTokenGetter } from "../services/api";
 
 const CustomUserContext = createContext();
 
@@ -59,6 +59,21 @@ export function CustomUserProvider({ children }) {
       setIsLoadingRole(false);
     }
   };
+
+  // Register a token getter so every API request grabs a fresh Clerk JWT.
+  // Clerk session tokens expire after ~60s; without this, all protected
+  // requests start returning 401 once the cached token goes stale.
+  useEffect(() => {
+    setTokenGetter(async () => {
+      if (mockClerkId) return mockClerkId;
+      if (!clerkIsSignedIn) return null;
+      try {
+        return await getToken();
+      } catch {
+        return null;
+      }
+    });
+  }, [clerkIsSignedIn, mockClerkId, getToken]);
 
   useEffect(() => {
     if (clerkIsLoaded) {
