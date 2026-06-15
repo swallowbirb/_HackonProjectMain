@@ -4,11 +4,13 @@ import { useCart } from '../context/CartContext';
 import { useCustomUser } from '../context/CustomUserContext';
 import { getProductById } from '../services/product.service';
 import { createOrder } from '../services/order.service';
+import { redeemCredits } from '../services/sustainability.service';
 import CheckoutModal from '../components/shared/CheckoutModal';
-import { ShoppingCart, Trash2, Minus, Plus, ArrowLeft, CheckCircle, Package } from 'lucide-react';
+import { ShoppingCart, Trash2, Minus, Plus, ArrowLeft, CheckCircle, Package, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const PLACEHOLDER_IMAGE = 'https://placehold.co/120x120/EAEDED/555?text=No+Image';
+const RUPEE_PER_CREDIT = 10;
 
 export default function CartPage() {
   const { cart, removeFromCart, setQuantity, clearCart } = useCart();
@@ -21,6 +23,9 @@ export default function CartPage() {
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderError, setOrderError] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
+
+  // Phase 8 — green credits redemption (handled inside CheckoutModal).
+  const [creditsRedeemed, setCreditsRedeemed] = useState(0);
 
   // Fetch product details for items in cart
   useEffect(() => {
@@ -60,7 +65,7 @@ export default function CartPage() {
 
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleCheckoutAll = async (mockCreditCard, paymentMethod = 'prepaid') => {
+  const handleCheckoutAll = async (mockCreditCard, paymentMethod = 'prepaid', creditsToRedeem = 0) => {
     if (!mongoUser || role !== 'buyer') return;
     setOrdering(true);
     setOrderError('');
@@ -81,6 +86,13 @@ export default function CartPage() {
       if (failed.length > 0) {
         setOrderError(`${failed.length} item(s) failed to order.`);
       } else {
+        // Redeem credits against the first order if the buyer chose to.
+        if (creditsToRedeem > 0) {
+          try {
+            const r = await redeemCredits(creditsToRedeem, results[0]?.data?._id);
+            if (r.success) setCreditsRedeemed(r.data.creditsSpent || creditsToRedeem);
+          } catch { /* redemption non-fatal */ }
+        }
         setShowCheckout(false);
         setOrderSuccess(true);
         clearCart();
@@ -122,6 +134,11 @@ export default function CartPage() {
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">Orders Placed Successfully!</h2>
           <p className="text-sm text-gray-500 mb-6">All items have been ordered.</p>
+          {creditsRedeemed > 0 && (
+            <p className="text-sm text-emerald-700 mb-6 -mt-4 flex items-center justify-center gap-1">
+              <Coins className="w-4 h-4 text-amber-600" /> Redeemed {creditsRedeemed} green credit{creditsRedeemed === 1 ? '' : 's'} (−₹{creditsRedeemed * RUPEE_PER_CREDIT})
+            </p>
+          )}
           <div className="flex flex-col gap-3">
             <Link
               to="/orders"
@@ -276,6 +293,10 @@ export default function CartPage() {
               <span>Order Total:</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
+
+            <p className="text-[11px] text-emerald-700/70 mt-2 flex items-center gap-1">
+              <Coins className="w-3 h-3 text-amber-600" /> Pay with green credits at checkout
+            </p>
 
             {role === 'buyer' ? (
               <button

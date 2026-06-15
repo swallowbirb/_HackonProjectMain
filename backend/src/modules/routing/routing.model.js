@@ -38,34 +38,6 @@ const routingSchema = new mongoose.Schema(
       count: { type: Number, default: 0 },
       radiusKm: { type: Number, default: 0 },
     },
-
-    // Refund-timing decision (Combined plan §8).
-    refundTiming: {
-      type: String,
-      enum: ['immediate', 'on-resolution', 'on-inspection', 'rejected'],
-      default: 'on-resolution',
-    },
-    refundHold: { type: Boolean, default: false },
-    refundHoldReason: { type: String, default: null },
-
-    // Best-warehouse selection (null for peer-handoff / donate / local paths).
-    chosenWarehouse: {
-      code: { type: String, default: null },
-      name: { type: String, default: null },
-      city: { type: String, default: null },
-      score: { type: Number, default: null },
-      breakdown: { type: mongoose.Schema.Types.Mixed, default: null },
-    },
-
-    // Hold-at-home matching window (set when a peer match exists).
-    matchWindow: {
-      active: { type: Boolean, default: false },
-      hours: { type: Number, default: null },
-      expiresAt: { type: Date, default: null },
-    },
-
-    // Search tags generated for this item (drives matching).
-    tags: { type: [String], default: [] },
   },
   { timestamps: true }
 );

@@ -511,3 +511,10 @@ When ALL of the following are true, Phase 0 is complete:
 7. ✅ Seed script produces reproducible demo state
 8. ✅ MongoDB indexes exist on the correct collections
 9. ✅ Any team member can clone, copy `.env`, run `npm install` + `pip install`, and have both services running in < 2 minutes
+
+
+
+
+# TODO:
+- Run node src/config/createIndexes.js once to create the MongoDB indexes
+- Run pip install -r requirements.txt in ml-service/ when you're ready to start on Phase 2

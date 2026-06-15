@@ -151,15 +151,6 @@ export default function Navbar() {
                         >
                           Dashboard
                         </Link>
-                        {role === 'admin' && (
-                          <Link
-                            to="/admin/demand-map"
-                            onClick={() => setIsDropdownOpen(false)}
-                            className="block px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white rounded-lg transition-colors text-left"
-                          >
-                            Demand Map
-                          </Link>
-                        )}
                         <button
                           onClick={() => {
                             setIsDropdownOpen(false);
@@ -193,13 +184,6 @@ export default function Navbar() {
                 >
                   <span className="text-zinc-300 text-[11px] leading-tight">Sell</span>
                   <span className="font-bold text-[13px] leading-tight text-emerald-400">Second-Hand</span>
-                </Link>
-                <Link
-                  to="/looking-for"
-                  className="flex flex-col hover:outline hover:outline-white hover:outline-1 rounded px-2 py-1 transition-all cursor-pointer text-xs select-none justify-center"
-                >
-                  <span className="text-zinc-300 text-[11px] leading-tight">Looking</span>
-                  <span className="font-bold text-[13px] leading-tight text-indigo-300">For…</span>
                 </Link>
               </>
             )}
