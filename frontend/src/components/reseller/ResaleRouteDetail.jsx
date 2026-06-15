@@ -2,18 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   X, Loader2, Package, Boxes, Truck, Warehouse, Tag, Home, Handshake, PackageCheck,
-  MapPin, TrendingUp, RotateCcw, Award, Route,
+  MapPin, TrendingUp, RotateCcw, Award, Route, ChevronDown,
 } from 'lucide-react';
 import { getDemandMap } from '../../services/demand.service';
 import { getRoutingDecision } from '../../services/routing.service';
-import { rankWarehouses, demandTermForListing, inr } from '../../lib/routingDemo';
+import { rankWarehouses, demandTermForListing, inr, DEMO_CITIES, sourcePos } from '../../lib/routingDemo';
 import RouteCheckpointTracker from '../shared/RouteCheckpointTracker';
 import ResaleRouteMap from './ResaleRouteMap';
 
 const INDIGO = '#4f46e5';
 
 const WAREHOUSE_STEPS = (city, name) => [
-  { key: 'picked_up', label: 'Picked up', sublabel: "Collected from customer's home", icon: Package },
+  { key: 'picked_up', label: 'Picked up', sublabel: "Collected from reseller's location", icon: Package },
   { key: 'dispatched', label: 'Dispatched', sublabel: 'Left the origin facility', icon: Boxes },
   { key: 'in_transit', label: 'In transit', sublabel: `En route to ${city}`, icon: Truck },
   { key: 'arrived', label: `Arrived · ${city}`, sublabel: name, icon: Warehouse },
@@ -35,10 +35,12 @@ export default function ResaleRouteDetail({ listing, onClose }) {
   const isPeer = !!listing.peerRedistribute;
 
   const [loading, setLoading] = useState(true);
+  const [warehouses, setWarehouses] = useState([]);
   const [ranked, setRanked] = useState([]);
   const [winner, setWinner] = useState(null);
   const [nearest, setNearest] = useState(null);
   const [destinationCode, setDestinationCode] = useState(null);
+  const [sourceCity, setSourceCity] = useState(DEMO_CITIES[0].city); // default Raipur
 
   const [stepIndex, setStepIndex] = useState(() => {
     const saved = Number(localStorage.getItem(storageKey(itemId)));
@@ -47,6 +49,7 @@ export default function ResaleRouteDetail({ listing, onClose }) {
 
   const resaleValue = listing.suggestedPrice || listing.price || Math.round((listing.originalPrice || 0) * 0.6);
 
+  // Fetch warehouses + routing decision once
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -56,20 +59,37 @@ export default function ResaleRouteDetail({ listing, onClose }) {
         getRoutingDecision(itemId).catch(() => null),
       ]);
       if (cancelled) return;
-      const warehouses = mapData?.warehouses || [];
+      const whs = mapData?.warehouses || [];
+      setWarehouses(whs);
+      const src = sourcePos(sourceCity);
       const { ranked: r, winner: w, nearest: n } = rankWarehouses({
-        warehouses, resaleValue, category: listing.category,
+        warehouses: whs, resaleValue, category: listing.category, source: src,
       });
       setRanked(r);
       setWinner(w);
       setNearest(n);
-      // Prefer a persisted real routing decision's warehouse if present.
       const chosen = decision?.chosenWarehouse?.code;
       setDestinationCode(chosen && r.some((x) => x.code === chosen) ? chosen : w?.code || null);
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [itemId, term]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-rank whenever the source city changes
+  useEffect(() => {
+    if (!warehouses.length) return;
+    const src = sourcePos(sourceCity);
+    const { ranked: r, winner: w, nearest: n } = rankWarehouses({
+      warehouses, resaleValue, category: listing.category, source: src,
+    });
+    setRanked(r);
+    setWinner(w);
+    setNearest(n);
+    setDestinationCode(w?.code || null);
+    // Reset progress when city changes
+    setStepIndex(0);
+    localStorage.setItem(storageKey(itemId), '0');
+  }, [sourceCity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const steps = isPeer
     ? PEER_STEPS
@@ -137,6 +157,24 @@ export default function ResaleRouteDetail({ listing, onClose }) {
               Grade {listing.grade} · {listing.qualityScore}/100 · {inr(listing.price)} · demand {listing.demandCount || 0}
             </p>
           </div>
+          {/* City picker */}
+          <div className="relative flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-0.5">
+              <MapPin className="w-3 h-3" /> Reseller city
+            </div>
+            <div className="relative">
+              <select
+                value={sourceCity}
+                onChange={(e) => setSourceCity(e.target.value)}
+                className="appearance-none bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 pr-8 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 cursor-pointer"
+              >
+                {DEMO_CITIES.map((c) => (
+                  <option key={c.city} value={c.city}>{c.city}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
           <button onClick={onClose} className="w-9 h-9 rounded-full hover:bg-gray-100 flex items-center justify-center flex-shrink-0">
             <X className="w-5 h-5 text-gray-500" />
           </button>
@@ -171,7 +209,7 @@ export default function ResaleRouteDetail({ listing, onClose }) {
 
               {/* Map */}
               <div className="lg:col-span-2">
-                <ResaleRouteMap ranked={ranked} destinationCode={destinationCode} progress={progress} term={term} />
+                <ResaleRouteMap ranked={ranked} destinationCode={destinationCode} progress={progress} term={term} sourceCity={sourceCity} />
               </div>
             </div>
 

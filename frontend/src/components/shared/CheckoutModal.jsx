@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, X, ShieldCheck, Lock, Package, Banknote, Sparkles, Info } from 'lucide-react';
+import { CreditCard, X, ShieldCheck, Lock, Package, Banknote, Sparkles, Info, MapPin, ChevronDown } from 'lucide-react';
 import { getPaymentPolicy, getReturnWindow } from '../../services/festive.service';
+
+const DELIVERY_CITIES = [
+  'Raipur', 'Bhilai', 'Durg', 'Bilaspur', 'Korba', 'Raigarh', 'Jagdalpur',
+];
 
 /**
  * CheckoutModal — reusable for both single-product (Buy Now) and cart checkout.
@@ -30,6 +34,7 @@ export default function CheckoutModal({
   const [creditCard, setCreditCard] = useState('');
   const [error, setError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('prepaid');
+  const [deliveryCity, setDeliveryCity] = useState(DELIVERY_CITIES[0]);
 
   // Festive policy state
   const [festive, setFestive] = useState(null);       // { festive, eventCode, codAllowed, cap, partialPrepaidToken }
@@ -164,6 +169,25 @@ export default function CheckoutModal({
                     <p className="text-xl font-bold text-[#B12704] mt-2">${total.toFixed(2)}</p>
                   </>
                 )}
+              </div>
+
+              {/* Delivery city */}
+              <div className="mb-4">
+                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-gray-400" /> Delivery City
+                </label>
+                <div className="relative">
+                  <select
+                    value={deliveryCity}
+                    onChange={(e) => setDeliveryCity(e.target.value)}
+                    className="w-full appearance-none bg-gray-50 border border-gray-300 rounded-lg px-3 py-2.5 pr-9 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF9900] focus:border-[#FF9900] cursor-pointer"
+                  >
+                    {DELIVERY_CITIES.map((c) => (
+                      <option key={c} value={c}>{c}, Chhattisgarh</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
               </div>
 
               {/* Payment method selector */}

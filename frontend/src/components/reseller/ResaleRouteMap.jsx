@@ -21,8 +21,8 @@ const demandColor = (d) => {
  *   progress        0..1 — how far along the route the shipment is
  *   term            demand search term (for the legend)
  */
-export default function ResaleRouteMap({ ranked = [], destinationCode, progress = 0, term }) {
-  const src = sourcePos();
+export default function ResaleRouteMap({ ranked = [], destinationCode, progress = 0, term, sourceCity }) {
+  const src = sourcePos(sourceCity);
   const dest = ranked.find((w) => w.code === destinationCode);
 
   const { d: pathD, control } = useMemo(
@@ -91,12 +91,12 @@ export default function ResaleRouteMap({ ranked = [], destinationCode, progress 
           />
         )}
 
-        {/* Source pin (customer) */}
+        {/* Source pin (reseller) */}
         <g>
           <circle cx={src.x} cy={src.y} r="12" fill="#10b981" opacity="0.18" />
           <circle cx={src.x} cy={src.y} r="6" fill="#10b981" stroke="white" strokeWidth="2" />
           <text x={src.x} y={src.y + 22} textAnchor="middle" fontSize="11" fontWeight="800" className="fill-emerald-700">
-            Customer
+            Reseller
           </text>
         </g>
 
