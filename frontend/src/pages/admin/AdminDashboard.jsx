@@ -5,7 +5,7 @@ import {
   Shield, Package, Users, AlertTriangle, CheckCircle, Clock,
   XCircle, Ban, Pause, Play, Search, ChevronLeft, ChevronRight,
   RefreshCw, TrendingUp, Eye, ChevronDown, ChevronUp, Sparkles, Zap, ZapOff,
-  Maximize2, X, Plus, Trash2, Edit
+  Maximize2, X, Plus, Trash2, Edit, Map
 } from 'lucide-react';
 import {
   getStats,
@@ -1304,6 +1304,7 @@ const TABS = [
   { id: 'reviews', label: 'Reviews', icon: Eye },
   { id: 'festive', label: 'Festive Mode', icon: Sparkles },
   { id: 'prompts', label: 'Prompt Console', icon: Zap },
+  { id: 'demand-map', label: 'Demand Map', icon: Map },
 ];
 
 const AdminDashboard = () => {
@@ -1358,7 +1359,13 @@ const AdminDashboard = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  if (tab.id === 'demand-map') {
+                    navigate('/admin/demand-map');
+                  } else {
+                    setActiveTab(tab.id);
+                  }
+                }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-white text-gray-900 shadow-sm'
