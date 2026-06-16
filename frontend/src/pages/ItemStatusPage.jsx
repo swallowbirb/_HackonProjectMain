@@ -77,7 +77,9 @@ export default function ItemStatusPage() {
                     <CheckCircle2 className="w-10 h-10 text-emerald-500" />
                   </div>
                 </motion.div>
-                <h1 className="text-2xl font-black text-gray-900">Your Return Is Processing</h1>
+                <h1 className="text-2xl font-black text-gray-900">
+                  {status?.intakePath === 'sell-used' ? 'Your Item Is Being Processed' : 'Your Return Is Processing'}
+                </h1>
                 <p className="text-base text-gray-600 mt-3">
                   Check{' '}
                   <Link to="/orders" className="text-[#FF9900] font-semibold underline underline-offset-2">
