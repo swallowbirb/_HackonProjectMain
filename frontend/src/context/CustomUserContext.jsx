@@ -11,7 +11,7 @@ export function CustomUserProvider({ children }) {
   const [mongoUser, setMongoUser] = useState(null);
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
-  const isDev = process.env.NODE_ENV !== "production" || import.meta.env?.DEV;
+  const isDev = process.env.NODE_ENV !== "production" || import.meta.env?.DEV || import.meta.env?.VITE_SHOW_DEVTOOLS === 'true';
   const [mockClerkId, setMockClerkId] = useState(isDev ? localStorage.getItem("mock_clerk_id") : null);
 
   const isSignedIn = !!mockClerkId || clerkIsSignedIn;

@@ -7,7 +7,8 @@ const clerkAuthMiddleware = ClerkExpressRequireAuth({
 
 const requireAuth = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
-  if (process.env.NODE_ENV !== 'production' && token && token.startsWith('mock_')) {
+  const mockAllowed = process.env.NODE_ENV !== 'production' || process.env.ALLOW_MOCK_AUTH === 'true';
+  if (mockAllowed && token && token.startsWith('mock_')) {
     req.auth = { userId: token };
     return next();
   }
