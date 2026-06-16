@@ -20,6 +20,7 @@ import {
 } from '../../services/admin.service';
 import { getFestiveCalendar, setFestiveOverride } from '../../services/festive.service';
 import { listPrompts, savePrompt, resetPrompt, createCategoryPrompt, deleteCategoryPrompt } from '../../services/prompt.service';
+import DemandMapPage from './DemandMapPage';
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 
@@ -1359,13 +1360,7 @@ const AdminDashboard = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => {
-                  if (tab.id === 'demand-map') {
-                    navigate('/admin/demand-map');
-                  } else {
-                    setActiveTab(tab.id);
-                  }
-                }}
+                onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -1393,6 +1388,7 @@ const AdminDashboard = () => {
             {activeTab === 'reviews' && <ReviewsTab />}
             {activeTab === 'festive' && <FestiveTab />}
             {activeTab === 'prompts' && <PromptsTab />}
+            {activeTab === 'demand-map' && <DemandMapPage />}
           </motion.div>
         </AnimatePresence>
       </div>
