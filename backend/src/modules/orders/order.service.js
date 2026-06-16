@@ -122,10 +122,29 @@ const maybeRecordResaleSale = async (order, productId) => {
     const ResaleListing = require('../resale/resale.model');
     const listing = await ResaleListing.findOne({ marketplaceProductId: productId }).lean();
     if (!listing) return; // not a resale item — normal marketplace product
+
+    // Flip listing to SOLD
+    await ResaleListing.findByIdAndUpdate(listing._id, { status: 'SOLD' });
+
+    // Flip item to SOLD
+    try {
+      const Item = require('../items/item.model');
+      const LifecycleEvent = require('../lifecycle/lifecycle.model');
+      await Item.findByIdAndUpdate(listing.itemId, { status: 'SOLD' });
+      await LifecycleEvent.create({
+        itemId: listing.itemId,
+        eventType: 'SOLD',
+        actor: { userId: order.buyerId, role: 'buyer' },
+        data: { orderId: String(order._id) },
+        sequence: Date.now(),
+        timestamp: new Date(),
+      });
+    } catch (_) { /* non-fatal */ }
+
     const sustainabilityService = require('../sustainability/sustainability.service');
     await sustainabilityService.recordResaleSale({ resaleListing: listing, order });
   } catch (err) {
-    console.warn(`[orders] sustainability hook skipped: ${err.message}`);
+    console.warn(`[orders] resale sale hook skipped: ${err.message}`);
   }
 };
 
