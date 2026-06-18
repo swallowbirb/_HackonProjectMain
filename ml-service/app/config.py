@@ -108,10 +108,18 @@ class Settings(BaseSettings):
 
     # --- Gemini (LLM provider for Pass 1 + Pass 2) ---
     gemini_api_key: str = ""
+    # Comma-separated list of additional API keys for round-robin rotation.
+    # When the primary key is exhausted (429/RESOURCE_EXHAUSTED), the service
+    # automatically tries the next key before falling back to the mock response.
+    # Example: GEMINI_API_KEYS=key1,key2,key3
+    gemini_api_keys: str = ""
     # flash-lite is the primary (cheapest/fastest); flash is the genuine fallback
     # so a single flash-lite hiccup still has a different model to retry against.
     gemini_model_primary: str = "gemini-2.5-flash-lite"
     gemini_model_fallback: str = "gemini-2.5-flash"
+    # When True, return a hardcoded mock grade instead of calling Gemini.
+    # Automatically activates when all API keys are exhausted.
+    gemini_mock_fallback: bool = False
 
     # --- Phase 2 grading tunables ---
     grade_cache_ttl_seconds: int = 3600          # Pass-1 form-schema cache TTL

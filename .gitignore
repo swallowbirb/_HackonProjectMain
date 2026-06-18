@@ -154,3 +154,5 @@ backend/set_s3_cors.js
 
 # Generated runtime artifacts (donation receipt PDFs, etc.)
 backend/uploads/
+.vercel
+.env*
