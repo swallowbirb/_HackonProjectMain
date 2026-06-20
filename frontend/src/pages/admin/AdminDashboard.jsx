@@ -21,6 +21,18 @@ import {
 import { getFestiveCalendar, setFestiveOverride } from '../../services/festive.service';
 import { listPrompts, savePrompt, resetPrompt, createCategoryPrompt, deleteCategoryPrompt } from '../../services/prompt.service';
 import DemandMapPage from './DemandMapPage';
+import { useCustomUser } from '../../context/CustomUserContext';
+
+// Only an admin whose username ends with this suffix may see the Prompt Console.
+const PROMPT_CONSOLE_USERNAME_SUFFIX = 'catkitten32';
+
+// Derive a username for the current admin. The user model has no dedicated
+// `username` field, so we use the local part of the email (before the "@").
+const getAdminUsername = (mongoUser) =>
+  (mongoUser?.username || (mongoUser?.email || '').split('@')[0] || '').toLowerCase();
+
+const canSeePromptConsole = (mongoUser) =>
+  getAdminUsername(mongoUser).endsWith(PROMPT_CONSOLE_USERNAME_SUFFIX);
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 
@@ -1309,6 +1321,10 @@ const TABS = [
 ];
 
 const AdminDashboard = () => {
+  const { mongoUser } = useCustomUser();
+  const showPromptConsole = canSeePromptConsole(mongoUser);
+  const visibleTabs = showPromptConsole ? TABS : TABS.filter(t => t.id !== 'prompts');
+
   const [activeTab, setActiveTab] = useState('products');
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -1354,7 +1370,7 @@ const AdminDashboard = () => {
 
         {/* Tab Navigation */}
         <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded-xl p-1 w-fit flex-wrap">
-          {TABS.map(tab => {
+          {visibleTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -1387,7 +1403,7 @@ const AdminDashboard = () => {
             {activeTab === 'sellers' && <SellersTab />}
             {activeTab === 'reviews' && <ReviewsTab />}
             {activeTab === 'festive' && <FestiveTab />}
-            {activeTab === 'prompts' && <PromptsTab />}
+            {activeTab === 'prompts' && showPromptConsole && <PromptsTab />}
             {activeTab === 'demand-map' && <DemandMapPage />}
           </motion.div>
         </AnimatePresence>
