@@ -79,10 +79,9 @@ logger = logging.getLogger("ml-service.form_generator")
 # Module-scoped cache so it survives across requests within the process.
 _pass1_cache = TTLCache(settings.grade_cache_ttl_seconds)
 
-# CACHING DISABLED. Flip to True to re-enable the Pass-1 form cache. While False,
-# every /form request regenerates via Gemini — the cache is still written, just
-# never read, so re-enabling is instant.
-_PASS1_CACHE_ENABLED = False
+# Pass-1 form cache — enabled to conserve Gemini RPD quota during demos/judging.
+# Identical product+reason combos reuse the cached schema (TTL = GRADE_CACHE_TTL_SECONDS).
+_PASS1_CACHE_ENABLED = True
 
 # Form_Schema contract version — bumped when the schema shape changes so the
 # frontend / Evidence_Bundle can reason about compatibility (improvement #9).
@@ -267,24 +266,28 @@ def _backfill_field_aspects(field: dict) -> None:
 def _resolve_capture_mode(field: dict) -> str:
     """Resolve a field's Capture_Mode (Req 5.1, 5.3).
 
-    - `text` when every aspect is `verifiability=none` (nothing media can prove).
+    Resolution order (video signals win first, so a field that clearly asks for a
+    video is NEVER collapsed into a text box):
+    - `video` when the model explicitly chose video (capture_mode/type=video) OR the
+      field's own wording unambiguously asks for a video. This is checked FIRST so a
+      functional/internal video claim (whose aspects are all `verifiability=none`)
+      still renders a video uploader instead of a text field.
     - `text` when the model explicitly asked for a written answer.
-    - `video` when the model explicitly chose video (or the field type is video).
+    - `text` when every aspect is `verifiability=none` (nothing media can prove and
+      no video was requested).
     - `photo` otherwise.
     """
-    aspects = field.get("aspects") or []
-    if aspects and all(a.get("verifiability") == "none" for a in aspects):
-        return "text"
-
     emitted = field.get("capture_mode")
     emitted = emitted if emitted in CAPTURE_MODES else None
-    if emitted == "text":
-        return "text"
+
+    # 1. Explicit video signal — honored before any text collapse so a video request
+    #    for a functional/internal claim is preserved (e.g. "record a video showing
+    #    the zipper sliding", whose aspects are verifiability=none).
     if emitted == "video" or field.get("type") == "video":
         return "video"
 
-    # Fallback: honor explicit video intent in the field's own wording even when the
-    # model forgot to set type/capture_mode (e.g. label "Overall Condition Video",
+    # Honor explicit video intent in the field's own wording even when the model
+    # forgot to set type/capture_mode (e.g. label "Overall Condition Video",
     # guidance "provide a video panning over the jacket"). Only an unambiguous video
     # signal upgrades photo→video, so normal photo fields are unaffected.
     text = " ".join(
@@ -292,6 +295,15 @@ def _resolve_capture_mode(field: dict) -> str:
     )
     if _VIDEO_INTENT_RE.search(text):
         return "video"
+
+    # 2. Explicit written-answer request.
+    if emitted == "text":
+        return "text"
+
+    # 3. No video requested and nothing a camera can prove -> written answer.
+    aspects = field.get("aspects") or []
+    if aspects and all(a.get("verifiability") == "none" for a in aspects):
+        return "text"
 
     return DEFAULT_CAPTURE_MODE
 

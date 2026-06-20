@@ -5,7 +5,7 @@ import {
   Shield, Package, Users, AlertTriangle, CheckCircle, Clock,
   XCircle, Ban, Pause, Play, Search, ChevronLeft, ChevronRight,
   RefreshCw, TrendingUp, Eye, ChevronDown, ChevronUp, Sparkles, Zap, ZapOff,
-  Maximize2, X, Plus, Trash2, Edit
+  Maximize2, X, Plus, Trash2, Edit, Map
 } from 'lucide-react';
 import {
   getStats,
@@ -20,6 +20,7 @@ import {
 } from '../../services/admin.service';
 import { getFestiveCalendar, setFestiveOverride } from '../../services/festive.service';
 import { listPrompts, savePrompt, resetPrompt, createCategoryPrompt, deleteCategoryPrompt } from '../../services/prompt.service';
+import DemandMapPage from './DemandMapPage';
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 
@@ -1304,6 +1305,7 @@ const TABS = [
   { id: 'reviews', label: 'Reviews', icon: Eye },
   { id: 'festive', label: 'Festive Mode', icon: Sparkles },
   { id: 'prompts', label: 'Prompt Console', icon: Zap },
+  { id: 'demand-map', label: 'Demand Map', icon: Map },
 ];
 
 const AdminDashboard = () => {
@@ -1386,6 +1388,7 @@ const AdminDashboard = () => {
             {activeTab === 'reviews' && <ReviewsTab />}
             {activeTab === 'festive' && <FestiveTab />}
             {activeTab === 'prompts' && <PromptsTab />}
+            {activeTab === 'demand-map' && <DemandMapPage />}
           </motion.div>
         </AnimatePresence>
       </div>

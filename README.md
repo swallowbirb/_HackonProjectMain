@@ -9,6 +9,8 @@ grading, a trust model, geo-demand matching, and a deterministic disposition eng
 > destination (peer handoff, best warehouse, donation, or liquidation) — then relisted as a
 > grade-backed, honestly-priced product.
 
+**🌐 Live Demo:** [second-life-tau.vercel.app](https://second-life-tau.vercel.app)
+
 ---
 
 ## Table of Contents

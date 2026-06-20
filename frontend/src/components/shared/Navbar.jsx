@@ -151,6 +151,15 @@ export default function Navbar() {
                         >
                           Dashboard
                         </Link>
+                        {role === 'admin' && (
+                          <Link
+                            to="/admin/demand-map"
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="block px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-white rounded-lg transition-colors text-left"
+                          >
+                            Demand Map
+                          </Link>
+                        )}
                         <button
                           onClick={() => {
                             setIsDropdownOpen(false);

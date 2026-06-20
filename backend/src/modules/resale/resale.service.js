@@ -187,9 +187,9 @@ const createDraftFromRouting = async ({ itemId, routingDecision, grade }) => {
   const suggestedPrice = computeSuggestedPrice(originalPrice, gradeDoc.estimatedResalePct, demandCount);
   const conditionLane = GRADE_TO_CONDITION_LANE[gradeDoc.grade] || 'fair';
 
-  // Auto-list if this is a return path (not sell-used)
-  const autoListed = item.intakePath === 'return';
-  const initialStatus = autoListed ? 'PUBLISHED' : 'DRAFT';
+  // Auto-list if this is a return OR sell-used path — both auto-publish to storefront
+  const autoListed = true;
+  const initialStatus = 'PUBLISHED';
 
   const listing = await ResaleListing.create({
     itemId,

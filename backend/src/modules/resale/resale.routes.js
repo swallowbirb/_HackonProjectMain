@@ -22,10 +22,10 @@ router.post('/:id/publish', sellerAuth, resaleController.publish);
 router.post('/:id/unlist', sellerAuth, resaleController.unlist);
 router.patch('/:id/price', sellerAuth, validateUpdatePrice, resaleController.updatePrice);
 
+// Dev logs endpoint — must be before /:id to avoid shadowing.
+router.get('/:id/dev-logs', resaleController.getDevLogs);
+
 // Public listing detail — keep last so it doesn't shadow static routes.
 router.get('/:id', resaleController.getListing);
-
-// Dev logs endpoint (developer visibility for algorithm and calculations).
-router.get('/:id/dev-logs', resaleController.getDevLogs);
 
 module.exports = router;

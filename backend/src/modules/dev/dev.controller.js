@@ -31,7 +31,7 @@ const TrustProfile = require('../trust/trust.model');
 // than a hard-coded model list so newly-added collections are erased too.
 const eraseData = async (req, res, next) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_AUTH !== 'true') {
       return res.status(403).json({ success: false, message: 'Not allowed in production' });
     }
 
@@ -72,7 +72,7 @@ const eraseData = async (req, res, next) => {
 // Populate data from FakeStoreAPI
 const populateData = async (req, res, next) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_AUTH !== 'true') {
       return res.status(403).json({ success: false, message: 'Not allowed in production' });
     }
 
@@ -112,7 +112,7 @@ const populateData = async (req, res, next) => {
 // Save a JSON snapshot of the DB
 const saveData = async (req, res, next) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_AUTH !== 'true') {
       return res.status(403).json({ success: false, message: 'Not allowed in production' });
     }
 
@@ -168,7 +168,7 @@ const saveData = async (req, res, next) => {
  */
 const resetReturnData = async (req, res, next) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_AUTH !== 'true') {
       return res.status(403).json({ success: false, message: 'Not allowed in production' });
     }
 
@@ -330,7 +330,7 @@ const GRADE_DEFAULTS = {
 
 const manualGrade = async (req, res, next) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_AUTH !== 'true') {
       return res.status(403).json({ success: false, message: 'Not allowed in production' });
     }
 
@@ -434,7 +434,7 @@ const manualGrade = async (req, res, next) => {
  */
 const regenForm = async (req, res, next) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_AUTH !== 'true') {
       return res.status(403).json({ success: false, message: 'Not allowed in production' });
     }
 
